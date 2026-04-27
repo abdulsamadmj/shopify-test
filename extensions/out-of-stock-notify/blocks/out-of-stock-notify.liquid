@@ -1,0 +1,159 @@
+{% if product and product.available == false %}
+  <section class="stock-alert" aria-labelledby="stock-alert-heading-{{ block.id }}">
+    <div class="stock-alert__content">
+      <p class="stock-alert__eyebrow">{{ block.settings.kicker }}</p>
+      <h2 id="stock-alert-heading-{{ block.id }}" class="stock-alert__heading">
+        {{ block.settings.heading }}
+      </h2>
+      <p class="stock-alert__message">
+        {{ block.settings.message }}
+      </p>
+
+      <div class="stock-alert__form" role="group" aria-label="Back in stock notification signup">
+        <label class="stock-alert__label" for="stock-alert-email-{{ block.id }}">Email address</label>
+        <input
+          id="stock-alert-email-{{ block.id }}"
+          class="stock-alert__input"
+          type="email"
+          name="email"
+          autocomplete="email"
+          placeholder="you@example.com"
+          aria-describedby="stock-alert-help-{{ block.id }}"
+        >
+        <button class="stock-alert__button" type="button">
+          {{ block.settings.button_label }}
+        </button>
+      </div>
+
+      <p id="stock-alert-help-{{ block.id }}" class="stock-alert__help">
+        No email will be sent in this demo block.
+      </p>
+    </div>
+  </section>
+
+  <style>
+    .stock-alert {
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 8px;
+      margin: 24px 0;
+      padding: 24px;
+    }
+
+    .stock-alert__content {
+      display: grid;
+      gap: 12px;
+      max-width: 680px;
+    }
+
+    .stock-alert__eyebrow,
+    .stock-alert__help {
+      color: rgba(0, 0, 0, 0.64);
+      font-size: 0.875rem;
+      margin: 0;
+    }
+
+    .stock-alert__heading {
+      font-size: clamp(1.5rem, 2vw, 2rem);
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .stock-alert__message {
+      margin: 0;
+    }
+
+    .stock-alert__form {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      margin-top: 8px;
+    }
+
+    .stock-alert__label {
+      font-weight: 600;
+      grid-column: 1 / -1;
+    }
+
+    .stock-alert__input {
+      border: 1px solid rgba(0, 0, 0, 0.24);
+      border-radius: 6px;
+      font: inherit;
+      min-height: 44px;
+      padding: 10px 12px;
+      width: 100%;
+    }
+
+    .stock-alert__input:focus-visible,
+    .stock-alert__button:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+
+    .stock-alert__button {
+      background: {{ block.settings.button_color }};
+      border: 0;
+      border-radius: 6px;
+      color: {{ block.settings.button_text_color }};
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      min-height: 44px;
+      padding: 10px 18px;
+    }
+
+    @media screen and (max-width: 640px) {
+      .stock-alert {
+        padding: 18px;
+      }
+
+      .stock-alert__form {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Out of stock notify",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "Currently unavailable"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Get notified when this product is back"
+    },
+    {
+      "type": "textarea",
+      "id": "message",
+      "label": "Message",
+      "default": "Leave your email and we will let you know as soon as inventory is available again."
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Notify me when available"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button color",
+      "default": "#008060"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button text color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}
