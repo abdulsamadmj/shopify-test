@@ -11,10 +11,13 @@ import {
   Tooltip,
 } from "@shopify/polaris";
 import {
+  CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
+  XAxis,
   YAxis,
 } from "recharts";
 
@@ -22,6 +25,7 @@ type PolarisInlineGridGap = ComponentProps<typeof InlineGrid>["gap"];
 type PolarisBlockStackGap = ComponentProps<typeof BlockStack>["gap"];
 
 const DEFAULT_CHART_STROKE = "#2e72d2";
+const DEFAULT_COMPARISON_STROKE = "#84bfff";
 
 function formatInspectLabel(iso: string | undefined) {
   if (!iso || typeof iso !== "string") return "";
@@ -36,6 +40,7 @@ function formatInspectLabel(iso: string | undefined) {
     return iso;
   }
 }
+
 const INLINE_GRID_COLUMNS = {
   xs: "minmax(0, 1fr)",
   md: "minmax(0, 1fr) minmax(140px, 2fr)",
@@ -46,6 +51,8 @@ export type AnalyticsTooltipContent =
   | { heading: string; body: string };
 
 export type AnalyticsChartDatum = Record<string, unknown>;
+
+export type AnalyticsCardSize = "sm" | "md" | "lg";
 
 type AnalyticsSparklineProps = {
   chartData: ReadonlyArray<AnalyticsChartDatum>;
@@ -86,7 +93,6 @@ function AnalyticsSparkline({
   const baseData =
     chartData.length > 0 ? [...chartData] : [{ [chartDataKey]: 0 }];
 
-  /** One day / one bucket: draw a flat baseline at the bottom instead of a lone dot. */
   const isSinglePointSeries = baseData.length === 1;
   const safeData: AnalyticsChartDatum[] = isSinglePointSeries
     ? [
@@ -165,24 +171,155 @@ function AnalyticsSparkline({
   );
 }
 
+type AnalyticsLargeCartesianProps = {
+  chartData: ReadonlyArray<AnalyticsChartDatum>;
+  valueKey: string;
+  comparisonKey: string;
+  xAxisKey: string;
+  primaryStroke: string;
+  comparisonStroke: string;
+  heightPx: number;
+  legendCurrentLabel: string;
+  legendCompareLabel: string;
+  yTickPrefix: string;
+  showComparisonLine: boolean;
+};
+
+function AnalyticsLargeCartesianChart({
+  chartData,
+  valueKey,
+  comparisonKey,
+  xAxisKey,
+  primaryStroke,
+  comparisonStroke,
+  heightPx,
+  legendCurrentLabel,
+  legendCompareLabel,
+  showComparisonLine,
+  yTickPrefix,
+}: AnalyticsLargeCartesianProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const safeData =
+    chartData.length > 0
+      ? [...chartData]
+      : [{ [xAxisKey]: "12 AM", [valueKey]: 0, [comparisonKey]: 0 }];
+
+  if (!mounted) {
+    return (
+      <Box width="100%" minHeight={`${heightPx}px`}>
+        <SkeletonBodyText lines={5} />
+      </Box>
+    );
+  }
+
+  return (
+    <Box width="100%" minWidth="0">
+      <div style={{ width: "100%", height: heightPx, minHeight: heightPx }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={safeData}
+            margin={{ top: 8, right: 16, bottom: 8, left: 8 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e3e3e3" />
+            <XAxis
+              dataKey={xAxisKey}
+              tick={{ fontSize: 11, fill: "#616161" }}
+              tickLine={false}
+              axisLine={{ stroke: "#e3e3e3" }}
+              interval={1}
+              tickMargin={8}
+            />
+            <YAxis
+              width={56}
+              tick={{ fontSize: 11, fill: "#616161" }}
+              tickLine={false}
+              axisLine={{ stroke: "#e3e3e3" }}
+              tickFormatter={(v: number) =>
+                `${yTickPrefix}${Number(v).toLocaleString(undefined, {
+                  maximumFractionDigits: Number.isInteger(v) ? 0 : 2,
+                })}`
+              }
+              domain={[0, "auto"]}
+            />
+            <RechartsTooltip
+              formatter={(v: unknown) =>
+                typeof v === "number"
+                  ? [
+                      `${yTickPrefix}${v.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`,
+                    ]
+                  : [String(v)]
+              }
+              labelFormatter={(label) => String(label)}
+            />
+            <Legend
+              verticalAlign="bottom"
+              align="center"
+              wrapperStyle={{ paddingTop: 12 }}
+              formatter={(value) => (
+                <span style={{ fontSize: 12, color: "#303030" }}>{value}</span>
+              )}
+            />
+            <Line
+              type="monotone"
+              name={legendCurrentLabel}
+              dataKey={valueKey}
+              stroke={primaryStroke}
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />
+            {showComparisonLine ? (
+              <Line
+                type="monotone"
+                name={legendCompareLabel}
+                dataKey={comparisonKey}
+                stroke={comparisonStroke}
+                strokeWidth={2}
+                strokeDasharray="6 5"
+                dot={false}
+                isAnimationActive={false}
+              />
+            ) : null}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </Box>
+  );
+}
+
 export type AnalyticsCardProps = {
   title: string;
   tooltip?: AnalyticsTooltipContent;
   unit?: string;
-  /** When omitted, a subdued placeholder is shown. */
   value?: number;
   chartData: ReadonlyArray<AnalyticsChartDatum>;
   chartDataKey?: string;
   chartStroke?: string;
-  /** Controls both row and column gap between the metrics stack and chart. */
   rowColumnGap?: PolarisInlineGridGap;
   metricsStackGap?: PolarisBlockStackGap;
-  /** Minimum chart area height (px); combined with `aspect-ratio: 2 / 1` for responsiveness. */
   chartMinHeight?: number;
-  /** When true, hover shows point detail (Recharts tooltip) and highlights the active point. */
   chartInspectEnabled?: boolean;
-  /** Compact single-column layout for dense metric grids. */
-  density?: "default" | "compact";
+  /** `sm` — dense metric strip; `md` — default KPI + sparkline; `lg` — detailed cartesian chart row. */
+  size?: AnalyticsCardSize;
+  /** Dashed comparison line stroke (`lg` only). */
+  comparisonStroke?: string;
+  /** Cartesian chart height in px (`lg` only). */
+  largeChartHeight?: number;
+  /** X-axis category key for hourly charts (`lg`). */
+  largeChartXAxisKey?: string;
+  comparisonDataKey?: string;
+  largeChartLegendCurrent?: string;
+  largeChartLegendCompare?: string;
+  /** When false, omit comparison series (`lg`). */
+  showComparisonLine?: boolean;
 };
 
 export function AnalyticsCard({
@@ -193,23 +330,35 @@ export function AnalyticsCard({
   chartData,
   chartDataKey = "value",
   chartStroke = DEFAULT_CHART_STROKE,
+  comparisonStroke = DEFAULT_COMPARISON_STROKE,
   rowColumnGap = "400",
   metricsStackGap = "200",
   chartMinHeight = 104,
   chartInspectEnabled = true,
-  density = "default",
+  size = "md",
+  largeChartHeight = 300,
+  largeChartXAxisKey = "hourLabel",
+  comparisonDataKey = "compareValue",
+  largeChartLegendCurrent = "Current",
+  largeChartLegendCompare = "Comparison",
+  showComparisonLine = true,
 }: AnalyticsCardProps) {
-  const isCompact = density === "compact";
-  const cardPadding = isCompact ? { xs: "300" as const } : { xs: "400" as const };
+  const isSm = size === "sm";
+  const isLg = size === "lg";
+  const cardPadding = isSm
+    ? { xs: "300" as const }
+    : isLg
+      ? { xs: "400" as const }
+      : { xs: "400" as const };
   const gridGap = rowColumnGap;
-  const stackGap = isCompact ? ("100" as const) : metricsStackGap;
-  const chartStrokeWidth = isCompact ? 1.5 : 2;
-  const activeDotRadius = isCompact ? 4 : 5;
+  const stackGap = isSm ? ("100" as const) : metricsStackGap;
+  const chartStrokeWidth = isSm ? 1.5 : 2;
+  const activeDotRadius = isSm ? 4 : 5;
 
   const titleText = (
     <Text
       as="span"
-      variant={isCompact ? "bodySm" : "bodyMd"}
+      variant={isSm ? "bodySm" : "bodyMd"}
       tone="subdued"
     >
       {title}
@@ -252,14 +401,22 @@ export function AnalyticsCard({
       chartMinHeight={chartMinHeight}
       chartInspectEnabled={chartInspectEnabled}
       activeDotRadius={activeDotRadius}
-      layout={isCompact ? "compactInline" : "default"}
+      layout={isSm ? "compactInline" : "default"}
     />
   );
+
+  const valueMoneyFormatted =
+    value !== undefined
+      ? value.toLocaleString(undefined, {
+          minimumFractionDigits: unit === "" ? 0 : 2,
+          maximumFractionDigits: unit === "" ? 0 : 2,
+        })
+      : null;
 
   return (
     <Box width="100%" minHeight="100%">
       <Card padding={cardPadding}>
-        {isCompact ? (
+        {isSm ? (
           <InlineStack
             align="space-between"
             blockAlign="end"
@@ -274,7 +431,9 @@ export function AnalyticsCard({
                     <>
                       <Text as="span" variant="headingMd" fontWeight="semibold">
                         {unit}
-                        {value.toLocaleString()}
+                        {unit === ""
+                          ? value.toLocaleString()
+                          : valueMoneyFormatted}
                       </Text>
                       <Text as="span" variant="headingMd" tone="subdued">
                         —
@@ -298,6 +457,42 @@ export function AnalyticsCard({
               {sparkline}
             </div>
           </InlineStack>
+        ) : isLg ? (
+          <BlockStack gap="300">
+            <div>{titleBlock}</div>
+            <InlineStack gap="150" blockAlign="baseline" wrap={false}>
+              {value !== undefined ? (
+                <>
+                  <Text as="span" variant="headingLg" fontWeight="semibold">
+                    {unit}
+                    {unit === ""
+                      ? value.toLocaleString()
+                      : valueMoneyFormatted}
+                  </Text>
+                  <Text as="span" variant="headingLg" tone="subdued">
+                    —
+                  </Text>
+                </>
+              ) : (
+                <Text as="span" variant="headingLg" tone="subdued">
+                  —
+                </Text>
+              )}
+            </InlineStack>
+            <AnalyticsLargeCartesianChart
+              chartData={chartData}
+              valueKey={chartDataKey}
+              comparisonKey={comparisonDataKey}
+              xAxisKey={largeChartXAxisKey}
+              primaryStroke={chartStroke}
+              comparisonStroke={comparisonStroke}
+              heightPx={largeChartHeight}
+              legendCurrentLabel={largeChartLegendCurrent}
+              legendCompareLabel={largeChartLegendCompare}
+              showComparisonLine={showComparisonLine}
+              yTickPrefix={unit}
+            />
+          </BlockStack>
         ) : (
           <InlineGrid columns={INLINE_GRID_COLUMNS} gap={gridGap}>
             <BlockStack gap={stackGap}>
