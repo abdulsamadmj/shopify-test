@@ -57,7 +57,7 @@ export type AnalyticsCardSize = "sm" | "md" | "lg";
 type AnalyticsSparklineProps = {
   chartData: ReadonlyArray<AnalyticsChartDatum>;
   chartDataKey: string;
-  chartStroke: string;
+  primarySeriesStroke: string;
   chartStrokeWidth: number;
   chartMinHeight: number;
   chartInspectEnabled: boolean;
@@ -68,7 +68,7 @@ type AnalyticsSparklineProps = {
 function AnalyticsSparkline({
   chartData,
   chartDataKey,
-  chartStroke,
+  primarySeriesStroke,
   chartStrokeWidth,
   chartMinHeight,
   chartInspectEnabled,
@@ -130,7 +130,11 @@ function AnalyticsSparkline({
             ) : null}
             {showPointInspect ? (
               <RechartsTooltip
-                cursor={{ stroke: chartStroke, strokeWidth: 1, strokeDasharray: "4 4" }}
+                cursor={{
+                  stroke: primarySeriesStroke,
+                  strokeWidth: 1,
+                  strokeDasharray: "4 4",
+                }}
                 labelFormatter={(label, payloadArr) => {
                   const datum = payloadArr?.[0]?.payload as {
                     occurredOn?: string;
@@ -149,14 +153,14 @@ function AnalyticsSparkline({
             <Line
               type="monotone"
               dataKey={chartDataKey}
-              stroke={chartStroke}
+              stroke={primarySeriesStroke}
               strokeWidth={chartStrokeWidth}
               dot={false}
               activeDot={
                 showPointInspect
                   ? {
                       r: activeDotRadius,
-                      stroke: chartStroke,
+                      stroke: primarySeriesStroke,
                       strokeWidth: chartStrokeWidth,
                       fill: "#fff",
                     }
@@ -302,6 +306,7 @@ export type AnalyticsCardProps = {
   value?: number;
   chartData: ReadonlyArray<AnalyticsChartDatum>;
   chartDataKey?: string;
+  /** Primary series color; same for sparkline (`sm`/`md`) and cartesian chart (`lg`). */
   chartStroke?: string;
   rowColumnGap?: PolarisInlineGridGap;
   metricsStackGap?: PolarisBlockStackGap;
@@ -354,13 +359,10 @@ export function AnalyticsCard({
   const stackGap = isSm ? ("100" as const) : metricsStackGap;
   const chartStrokeWidth = isSm ? 1.5 : 2;
   const activeDotRadius = isSm ? 4 : 5;
+  const primarySeriesStroke = chartStroke;
 
   const titleText = (
-    <Text
-      as="span"
-      variant={isSm ? "bodySm" : "bodyMd"}
-      tone="subdued"
-    >
+    <Text as="span" variant="headingMd" fontWeight="semibold" tone="subdued">
       {title}
     </Text>
   );
@@ -369,17 +371,21 @@ export function AnalyticsCard({
     <Tooltip
       preferredPosition="above"
       width={typeof tooltip === "object" ? "wide" : "default"}
-      hasUnderline
       content={
         typeof tooltip === "string" ? (
           tooltip
         ) : (
           <>
-            <Text as="span" variant="headingSm" fontWeight="semibold">
+            <Text
+              as="span"
+              variant="headingSm"
+              fontWeight="semibold"
+              tone="subdued"
+            >
               {tooltip.heading}
             </Text>
             <br />
-            <Text as="span" variant="bodyMd" tone="subdued">
+            <Text as="span" variant="bodyMd" fontWeight="semibold" tone="subdued">
               {tooltip.body}
             </Text>
           </>
@@ -396,7 +402,7 @@ export function AnalyticsCard({
     <AnalyticsSparkline
       chartData={chartData}
       chartDataKey={chartDataKey}
-      chartStroke={chartStroke}
+      primarySeriesStroke={primarySeriesStroke}
       chartStrokeWidth={chartStrokeWidth}
       chartMinHeight={chartMinHeight}
       chartInspectEnabled={chartInspectEnabled}
@@ -435,12 +441,22 @@ export function AnalyticsCard({
                           ? value.toLocaleString()
                           : valueMoneyFormatted}
                       </Text>
-                      <Text as="span" variant="headingMd" tone="subdued">
+                      <Text
+                        as="span"
+                        variant="headingMd"
+                        fontWeight="semibold"
+                        tone="subdued"
+                      >
                         —
                       </Text>
                     </>
                   ) : (
-                    <Text as="span" variant="headingMd" tone="subdued">
+                    <Text
+                      as="span"
+                      variant="headingMd"
+                      fontWeight="semibold"
+                      tone="subdued"
+                    >
                       —
                     </Text>
                   )}
@@ -469,12 +485,22 @@ export function AnalyticsCard({
                       ? value.toLocaleString()
                       : valueMoneyFormatted}
                   </Text>
-                  <Text as="span" variant="headingLg" tone="subdued">
+                  <Text
+                    as="span"
+                    variant="headingLg"
+                    fontWeight="semibold"
+                    tone="subdued"
+                  >
                     —
                   </Text>
                 </>
               ) : (
-                <Text as="span" variant="headingLg" tone="subdued">
+                <Text
+                  as="span"
+                  variant="headingLg"
+                  fontWeight="semibold"
+                  tone="subdued"
+                >
                   —
                 </Text>
               )}
@@ -484,7 +510,7 @@ export function AnalyticsCard({
               valueKey={chartDataKey}
               comparisonKey={comparisonDataKey}
               xAxisKey={largeChartXAxisKey}
-              primaryStroke={chartStroke}
+              primaryStroke={primarySeriesStroke}
               comparisonStroke={comparisonStroke}
               heightPx={largeChartHeight}
               legendCurrentLabel={largeChartLegendCurrent}
@@ -503,7 +529,12 @@ export function AnalyticsCard({
                   {value.toLocaleString()}
                 </Text>
               ) : (
-                <Text as="p" variant="headingLg" tone="subdued">
+                <Text
+                  as="p"
+                  variant="headingLg"
+                  fontWeight="semibold"
+                  tone="subdued"
+                >
                   —
                 </Text>
               )}
