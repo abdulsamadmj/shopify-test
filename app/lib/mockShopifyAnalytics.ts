@@ -158,6 +158,102 @@ export function toFulfilledChartSeries(
   }));
 }
 
+/** Long legend label for charts (e.g. “May 2, 2026”). */
+export function formatLegendDayIso(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(`${iso}T12:00:00`));
+  } catch {
+    return iso;
+  }
+}
+
+function hourLabel12(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  if (h === 0) return "12 AM";
+  if (h < 12) return `${h} AM`;
+  if (h === 12) return "12 PM";
+  return `${h - 12} PM`;
+}
+
+/** Intraday buckets for large “sales over time” cartesian charts (mock). */
+export type HourlySalesDatum = {
+  hourIndex: number;
+  hourLabel: string;
+  value: number;
+  compareValue: number;
+};
+
+/**
+ * Builds 24 hourly points for primary vs comparison calendar days.
+ * Primary spreads `currentDayIso` gross across hours (or stays flat at 0 when forced / zero gross).
+ * Comparison ramps after 5 PM when days differ (mirrors Admin placeholder curves).
+ */
+export function buildHourlySalesOverTimeSeries(opts: {
+  currentDayIso: string;
+  compareDayIso: string;
+  currency: MockCurrencyCode;
+  allBuckets: readonly SalesByDayBucket[];
+  forcePrimaryFlat?: boolean;
+}): HourlySalesDatum[] {
+  const curRow = opts.allBuckets.find((b) => b.occurredOn === opts.currentDayIso);
+  const cmpRow = opts.allBuckets.find((b) => b.occurredOn === opts.compareDayIso);
+  const curDisplay = curRow
+    ? Math.round(
+        convertAmountFromInr(parseMoneyAmount(curRow.grossSales), opts.currency) *
+          100,
+      ) / 100
+    : 0;
+  const cmpDisplay = cmpRow
+    ? Math.round(
+        convertAmountFromInr(parseMoneyAmount(cmpRow.grossSales), opts.currency) *
+          100,
+      ) / 100
+    : 0;
+
+  const sameDay = opts.currentDayIso === opts.compareDayIso;
+  const weights = Array.from(
+    { length: 24 },
+    (_, hour) => 0.92 + (((hour * 17) % 11) / 100),
+  );
+  const wSum = weights.reduce((s, w) => s + w, 0);
+
+  const rows: HourlySalesDatum[] = [];
+  const cmpCap =
+    cmpDisplay > 0
+      ? Math.min(
+          cmpDisplay * 0.1,
+          opts.currency === "INR" ? 14 : 2,
+        )
+      : 0;
+
+  for (let hour = 0; hour < 24; hour++) {
+    const primaryFlat =
+      Boolean(opts.forcePrimaryFlat) || curDisplay <= 0;
+    const value = primaryFlat
+      ? 0
+      : Math.round(((curDisplay / wSum) * weights[hour]) * 100) / 100;
+
+    let compareValue = 0;
+    if (!sameDay && cmpDisplay > 0 && hour >= 17) {
+      compareValue =
+        Math.round(((hour - 17) / 7) * cmpCap * 100) / 100;
+    }
+
+    rows.push({
+      hourIndex: hour,
+      hourLabel: hourLabel12(hour),
+      value,
+      compareValue,
+    });
+  }
+
+  return rows;
+}
+
 /** Sum of gross for headline — same derivation as summing chart `value` in INR-equivalent cents. */
 export function totalGrossForDisplay(
   buckets: readonly SalesByDayBucket[],

@@ -10,8 +10,10 @@ import {
 import {
   MOCK_ANALYTICS_TODAY_ISO,
   MOCK_SALES_DAY_BUCKETS,
+  buildHourlySalesOverTimeSeries,
   filterBucketsByIsoRange,
   currencyDisplayPrefix,
+  formatLegendDayIso,
   isoRangeEndingOn,
   totalGrossForDisplay,
   totalProfitForDisplay,
@@ -52,10 +54,17 @@ const METRIC_GRID_COLUMNS = {
   lg: "repeat(4, minmax(0, 1fr))",
 } as const;
 
+/** Bottom row: primary metric spans ~2/3 width on large screens. */
+const LARGE_CHART_GRID_COLUMNS = {
+  xs: "minmax(0, 1fr)",
+  lg: "minmax(0, 2fr) minmax(0, 1fr)",
+} as const;
+
 const COMPACT_CHART_MIN_HEIGHT = 48;
 
-/** Sparkline color aligned with Shopify admin–style metric cards (teal accent). */
 const COMPACT_METRIC_CHART_STROKE = "#00848E";
+
+const LARGE_CHART_HEIGHT_PX = 300;
 
 export default function AnalyticsPage() {
   const [primaryPreset, setPrimaryPreset] =
@@ -131,10 +140,27 @@ export default function AnalyticsPage() {
     [filteredBuckets],
   );
 
+  const hourlySalesSeries = useMemo(
+    () =>
+      buildHourlySalesOverTimeSeries({
+        currentDayIso: appliedRange.endIso,
+        compareDayIso: compareIso,
+        currency,
+        allBuckets: MOCK_SALES_DAY_BUCKETS,
+        forcePrimaryFlat: primaryPreset === "today",
+      }),
+    [appliedRange.endIso, compareIso, currency, primaryPreset],
+  );
+
+  const showSalesCompareLine = appliedRange.endIso !== compareIso;
+
   const moneyUnit = currencyDisplayPrefix(currency);
 
+  const legendCurrentDay = formatLegendDayIso(appliedRange.endIso);
+  const legendCompareDay = formatLegendDayIso(compareIso);
+
   return (
-    <Page>
+    <Page fullWidth>
       <TitleBar title="Analytics" />
       <Box width="100%" paddingBlockEnd="400">
         <BlockStack gap="400">
@@ -149,58 +175,80 @@ export default function AnalyticsPage() {
             currency={currency}
             onCurrency={setCurrency}
           />
-            <InlineGrid columns={METRIC_GRID_COLUMNS} gap="300">
-              <AnalyticsCard
-                density="compact"
-                title="Profit"
-                unit={moneyUnit}
-                value={profitTotal}
-                chartStroke={COMPACT_METRIC_CHART_STROKE}
-                tooltip={{
-                  heading: "Profit",
-                  body: "Mock net-style profit derived from daily gross in this demo.",
-                }}
-                chartData={profitSeries}
-                chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
-              />
-              <AnalyticsCard
-                density="compact"
-                title="Sales"
-                unit={moneyUnit}
-                value={salesTotal}
-                chartStroke={COMPACT_METRIC_CHART_STROKE}
-                tooltip={{
-                  heading: "Sales",
-                  body: "Gross sales revenue for the selected period (before discounts and returns).",
-                }}
-                chartData={salesSeries}
-                chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
-              />
-              <AnalyticsCard
-                density="compact"
-                title="Returns"
-                unit={moneyUnit}
-                value={returnsTotal}
-                chartStroke={COMPACT_METRIC_CHART_STROKE}
-                tooltip={{
-                  heading: "Returns",
-                  body: "Return and refund value for the selected period (mock aggregate).",
-                }}
-                chartData={returnsSeries}
-                chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
-              />
-              <AnalyticsCard
-                density="compact"
-                title="Fulfilled"
-                unit=""
-                value={fulfilledTotal}
-                chartStroke={COMPACT_METRIC_CHART_STROKE}
-                tooltip="Fulfilled units or orders in the selected period (mock aggregate)."
-                chartData={fulfilledSeries}
-                chartDataKey="value"
-                chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
-              />
-            </InlineGrid>
+          <InlineGrid columns={METRIC_GRID_COLUMNS} gap="300">
+            <AnalyticsCard
+              size="sm"
+              title="Profit"
+              unit={moneyUnit}
+              value={profitTotal}
+              chartStroke={COMPACT_METRIC_CHART_STROKE}
+              tooltip={{
+                heading: "Profit",
+                body: "Mock net-style profit derived from daily gross in this demo.",
+              }}
+              chartData={profitSeries}
+              chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
+            />
+            <AnalyticsCard
+              size="sm"
+              title="Sales"
+              unit={moneyUnit}
+              value={salesTotal}
+              chartStroke={COMPACT_METRIC_CHART_STROKE}
+              tooltip={{
+                heading: "Sales",
+                body: "Gross sales revenue for the selected period (before discounts and returns).",
+              }}
+              chartData={salesSeries}
+              chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
+            />
+            <AnalyticsCard
+              size="sm"
+              title="Returns"
+              unit={moneyUnit}
+              value={returnsTotal}
+              chartStroke={COMPACT_METRIC_CHART_STROKE}
+              tooltip={{
+                heading: "Returns",
+                body: "Return and refund value for the selected period (mock aggregate).",
+              }}
+              chartData={returnsSeries}
+              chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
+            />
+            <AnalyticsCard
+              size="sm"
+              title="Fulfilled"
+              unit=""
+              value={fulfilledTotal}
+              chartStroke={COMPACT_METRIC_CHART_STROKE}
+              tooltip="Fulfilled units or orders in the selected period (mock aggregate)."
+              chartData={fulfilledSeries}
+              chartDataKey="value"
+              chartMinHeight={COMPACT_CHART_MIN_HEIGHT}
+            />
+          </InlineGrid>
+
+          <InlineGrid columns={LARGE_CHART_GRID_COLUMNS} gap="300">
+            <AnalyticsCard
+              size="lg"
+              title="Total sales over time"
+              unit={moneyUnit}
+              value={salesTotal}
+              chartData={hourlySalesSeries}
+              chartDataKey="value"
+              comparisonDataKey="compareValue"
+              largeChartXAxisKey="hourLabel"
+              largeChartHeight={LARGE_CHART_HEIGHT_PX}
+              largeChartLegendCurrent={legendCurrentDay}
+              largeChartLegendCompare={legendCompareDay}
+              showComparisonLine={showSalesCompareLine}
+              tooltip={{
+                heading: "Total sales over time",
+                body: "Intraday gross sales for the range end date vs comparison date (mock hourly buckets).",
+              }}
+            />
+            <Box />
+          </InlineGrid>
         </BlockStack>
       </Box>
     </Page>
