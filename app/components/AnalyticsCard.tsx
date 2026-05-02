@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, CSSProperties } from "react";
 import {
   Box,
   BlockStack,
   Card,
   InlineGrid,
+  InlineStack,
   SkeletonBodyText,
   Text,
   Tooltip,
@@ -50,16 +51,22 @@ type AnalyticsSparklineProps = {
   chartData: ReadonlyArray<AnalyticsChartDatum>;
   chartDataKey: string;
   chartStroke: string;
+  chartStrokeWidth: number;
   chartMinHeight: number;
   chartInspectEnabled: boolean;
+  activeDotRadius: number;
+  layout?: "default" | "compactInline";
 };
 
 function AnalyticsSparkline({
   chartData,
   chartDataKey,
   chartStroke,
+  chartStrokeWidth,
   chartMinHeight,
   chartInspectEnabled,
+  activeDotRadius,
+  layout = "default",
 }: AnalyticsSparklineProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -68,10 +75,11 @@ function AnalyticsSparkline({
   }, []);
 
   const minHeightPx = `${chartMinHeight}px`;
-  const chartWrapperStyle = {
+  const isCompactInline = layout === "compactInline";
+  const chartWrapperStyle: CSSProperties = {
     width: "100%",
     minHeight: minHeightPx,
-    aspectRatio: "2 / 1" as const,
+    aspectRatio: isCompactInline ? "3 / 1" : "2 / 1",
     minWidth: 0,
   };
 
@@ -103,7 +111,14 @@ function AnalyticsSparkline({
     <Box width="100%" minWidth="0">
       <div style={chartWrapperStyle}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={safeData} margin={{ top: 8, right: 4, bottom: 8, left: 4 }}>
+          <LineChart
+            data={safeData}
+            margin={
+              isCompactInline
+                ? { top: 4, right: 2, bottom: 4, left: 2 }
+                : { top: 8, right: 4, bottom: 8, left: 4 }
+            }
+          >
             {isSinglePointSeries ? (
               <YAxis hide domain={[0, 1]} />
             ) : null}
@@ -129,11 +144,16 @@ function AnalyticsSparkline({
               type="monotone"
               dataKey={chartDataKey}
               stroke={chartStroke}
-              strokeWidth={2}
+              strokeWidth={chartStrokeWidth}
               dot={false}
               activeDot={
                 showPointInspect
-                  ? { r: 5, stroke: chartStroke, strokeWidth: 2, fill: "#fff" }
+                  ? {
+                      r: activeDotRadius,
+                      stroke: chartStroke,
+                      strokeWidth: chartStrokeWidth,
+                      fill: "#fff",
+                    }
                   : false
               }
               isAnimationActive={false}
@@ -161,6 +181,8 @@ export type AnalyticsCardProps = {
   chartMinHeight?: number;
   /** When true, hover shows point detail (Recharts tooltip) and highlights the active point. */
   chartInspectEnabled?: boolean;
+  /** Compact single-column layout for dense metric grids. */
+  density?: "default" | "compact";
 };
 
 export function AnalyticsCard({
@@ -175,9 +197,21 @@ export function AnalyticsCard({
   metricsStackGap = "200",
   chartMinHeight = 104,
   chartInspectEnabled = true,
+  density = "default",
 }: AnalyticsCardProps) {
+  const isCompact = density === "compact";
+  const cardPadding = isCompact ? { xs: "300" as const } : { xs: "400" as const };
+  const gridGap = rowColumnGap;
+  const stackGap = isCompact ? ("100" as const) : metricsStackGap;
+  const chartStrokeWidth = isCompact ? 1.5 : 2;
+  const activeDotRadius = isCompact ? 4 : 5;
+
   const titleText = (
-    <Text as="span" variant="bodyMd" tone="subdued">
+    <Text
+      as="span"
+      variant={isCompact ? "bodySm" : "bodyMd"}
+      tone="subdued"
+    >
       {title}
     </Text>
   );
@@ -209,31 +243,79 @@ export function AnalyticsCard({
     titleText
   );
 
+  const sparkline = (
+    <AnalyticsSparkline
+      chartData={chartData}
+      chartDataKey={chartDataKey}
+      chartStroke={chartStroke}
+      chartStrokeWidth={chartStrokeWidth}
+      chartMinHeight={chartMinHeight}
+      chartInspectEnabled={chartInspectEnabled}
+      activeDotRadius={activeDotRadius}
+      layout={isCompact ? "compactInline" : "default"}
+    />
+  );
+
   return (
     <Box width="100%" minHeight="100%">
-      <Card padding={{ xs: "400" }}>
-        <InlineGrid columns={INLINE_GRID_COLUMNS} gap={rowColumnGap}>
-          <BlockStack gap={metricsStackGap}>
-            <div>{titleBlock}</div>
-            {value !== undefined ? (
-              <Text as="p" variant="headingLg" fontWeight="semibold">
-                {unit}
-                {value.toLocaleString()}
-              </Text>
-            ) : (
-              <Text as="p" variant="headingLg" tone="subdued">
-                —
-              </Text>
-            )}
-          </BlockStack>
-          <AnalyticsSparkline
-            chartData={chartData}
-            chartDataKey={chartDataKey}
-            chartStroke={chartStroke}
-            chartMinHeight={chartMinHeight}
-            chartInspectEnabled={chartInspectEnabled}
-          />
-        </InlineGrid>
+      <Card padding={cardPadding}>
+        {isCompact ? (
+          <InlineStack
+            align="space-between"
+            blockAlign="end"
+            gap="200"
+            wrap={false}
+          >
+            <Box minWidth="0">
+              <BlockStack gap={stackGap}>
+                <div>{titleBlock}</div>
+                <InlineStack gap="150" blockAlign="baseline" wrap={false}>
+                  {value !== undefined ? (
+                    <>
+                      <Text as="span" variant="headingMd" fontWeight="semibold">
+                        {unit}
+                        {value.toLocaleString()}
+                      </Text>
+                      <Text as="span" variant="headingMd" tone="subdued">
+                        —
+                      </Text>
+                    </>
+                  ) : (
+                    <Text as="span" variant="headingMd" tone="subdued">
+                      —
+                    </Text>
+                  )}
+                </InlineStack>
+              </BlockStack>
+            </Box>
+            <div
+              style={{
+                flexShrink: 0,
+                width: "clamp(4.5rem, 38%, 7.5rem)",
+                minWidth: "4.5rem",
+              }}
+            >
+              {sparkline}
+            </div>
+          </InlineStack>
+        ) : (
+          <InlineGrid columns={INLINE_GRID_COLUMNS} gap={gridGap}>
+            <BlockStack gap={stackGap}>
+              <div>{titleBlock}</div>
+              {value !== undefined ? (
+                <Text as="p" variant="headingLg" fontWeight="semibold">
+                  {unit}
+                  {value.toLocaleString()}
+                </Text>
+              ) : (
+                <Text as="p" variant="headingLg" tone="subdued">
+                  —
+                </Text>
+              )}
+            </BlockStack>
+            {sparkline}
+          </InlineGrid>
+        )}
       </Card>
     </Box>
   );
