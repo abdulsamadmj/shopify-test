@@ -1,0 +1,263 @@
+/**
+ * Mock analytics shaped like aggregates derived from Shopify Admin GraphQL:
+ * you'd typically query `orders` with `createdAt`, sum `MoneyV2` into daily buckets.
+ * Conversion rates are illustrative only — not FX-accurate.
+ */
+
+export type MockCurrencyCode = "INR" | "USD";
+
+/** Same shape as Admin API MoneyV2 (amount is a decimal string). */
+export interface MockMoneyV2 {
+  readonly amount: string;
+  readonly currencyCode: MockCurrencyCode;
+}
+
+/**
+ * Daily row analogous to aggregated `Order` data grouped by UTC date
+ * (`occurredOn` like a reporting bucket date).
+ */
+export interface SalesByDayBucket {
+  readonly __typename: "SalesByDayBucket";
+  readonly occurredOn: string;
+  readonly grossSales: MockMoneyV2;
+  readonly orderCount: number;
+  /** Mock net-style profit (INR `MoneyV2`). */
+  readonly profit: MockMoneyV2;
+  /** Mock return/refund value for the day (INR, positive for display). */
+  readonly returns: MockMoneyV2;
+  /** Mock fulfilled units or orders for the day. */
+  readonly fulfilledCount: number;
+}
+
+/** Mock rate: INR per 1 USD (multiply USD → INR). INR is store native currency. */
+export const MOCK_INR_PER_USD = 83;
+
+/** Reference “today” for deterministic demo ranges (UTC calendar date). */
+export const MOCK_ANALYTICS_TODAY = new Date(Date.UTC(2026, 4, 3));
+
+export function dateToUtcISODate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export const MOCK_ANALYTICS_TODAY_ISO = dateToUtcISODate(MOCK_ANALYTICS_TODAY);
+
+export function utcISODateToDate(iso: string): Date {
+  const [y, m, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, day));
+}
+
+export function parseMoneyAmount(money: MockMoneyV2): number {
+  const n = Number.parseFloat(money.amount);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Convert INR (store native mock) numeric amount to selected display currency amount. */
+export function convertAmountFromInr(
+  amountInInr: number,
+  currencyCode: MockCurrencyCode,
+): number {
+  if (currencyCode === "INR") return amountInInr;
+  return amountInInr / MOCK_INR_PER_USD;
+}
+
+export function currencyDisplayPrefix(code: MockCurrencyCode): string {
+  return code === "INR" ? "₹" : "$";
+}
+
+/** Inclusive on both ends; compares `occurredOn` ISO calendar strings only. */
+export function filterBucketsByIsoRange(
+  buckets: readonly SalesByDayBucket[],
+  startIso: string,
+  endIso: string,
+): SalesByDayBucket[] {
+  return buckets.filter((b) => b.occurredOn >= startIso && b.occurredOn <= endIso);
+}
+
+function addDaysToIsoUtc(iso: string, deltaDays: number): string {
+  const d = utcISODateToDate(iso);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return dateToUtcISODate(d);
+}
+
+/** Inclusive span of exact `n` days ending `endIso` (e.g. n=7 → 7 buckets max). */
+export function isoRangeEndingOn(endIso: string, dayCount: number): {
+  startIso: string;
+  endIso: string;
+} {
+  if (dayCount < 1)
+    throw new Error("isoRangeEndingOn: dayCount must be at least 1");
+  const startIso = addDaysToIsoUtc(endIso, -(dayCount - 1));
+  return { startIso, endIso };
+}
+
+export function sumBucketGrossInInr(buckets: readonly SalesByDayBucket[]): number {
+  return buckets.reduce((acc, row) => acc + parseMoneyAmount(row.grossSales), 0);
+}
+
+export function sumBucketOrders(buckets: readonly SalesByDayBucket[]): number {
+  return buckets.reduce((acc, row) => acc + row.orderCount, 0);
+}
+
+export function sumBucketProfitInInr(buckets: readonly SalesByDayBucket[]): number {
+  return buckets.reduce((acc, row) => acc + parseMoneyAmount(row.profit), 0);
+}
+
+export function sumBucketReturnsInInr(buckets: readonly SalesByDayBucket[]): number {
+  return buckets.reduce((acc, row) => acc + parseMoneyAmount(row.returns), 0);
+}
+
+export function sumFulfilled(buckets: readonly SalesByDayBucket[]): number {
+  return buckets.reduce((acc, row) => acc + row.fulfilledCount, 0);
+}
+
+export function toSalesChartSeries(
+  buckets: readonly SalesByDayBucket[],
+  currencyCode: MockCurrencyCode,
+): { occurredOn: string; value: number }[] {
+  return buckets.map((row) => ({
+    occurredOn: row.occurredOn,
+    value: Math.round(convertAmountFromInr(parseMoneyAmount(row.grossSales), currencyCode) * 100) / 100,
+  }));
+}
+
+export function toOrdersChartSeries(
+  buckets: readonly SalesByDayBucket[],
+): { occurredOn: string; value: number }[] {
+  return buckets.map((row) => ({
+    occurredOn: row.occurredOn,
+    value: row.orderCount,
+  }));
+}
+
+export function toProfitChartSeries(
+  buckets: readonly SalesByDayBucket[],
+  currencyCode: MockCurrencyCode,
+): { occurredOn: string; value: number }[] {
+  return buckets.map((row) => ({
+    occurredOn: row.occurredOn,
+    value: Math.round(convertAmountFromInr(parseMoneyAmount(row.profit), currencyCode) * 100) / 100,
+  }));
+}
+
+export function toReturnsChartSeries(
+  buckets: readonly SalesByDayBucket[],
+  currencyCode: MockCurrencyCode,
+): { occurredOn: string; value: number }[] {
+  return buckets.map((row) => ({
+    occurredOn: row.occurredOn,
+    value: Math.round(convertAmountFromInr(parseMoneyAmount(row.returns), currencyCode) * 100) / 100,
+  }));
+}
+
+export function toFulfilledChartSeries(
+  buckets: readonly SalesByDayBucket[],
+): { occurredOn: string; value: number }[] {
+  return buckets.map((row) => ({
+    occurredOn: row.occurredOn,
+    value: row.fulfilledCount,
+  }));
+}
+
+/** Sum of gross for headline — same derivation as summing chart `value` in INR-equivalent cents. */
+export function totalGrossForDisplay(
+  buckets: readonly SalesByDayBucket[],
+  currencyCode: MockCurrencyCode,
+): number {
+  const inInr = sumBucketGrossInInr(buckets);
+  const raw = convertAmountFromInr(inInr, currencyCode);
+  return Math.round(raw * 100) / 100;
+}
+
+export function totalProfitForDisplay(
+  buckets: readonly SalesByDayBucket[],
+  currencyCode: MockCurrencyCode,
+): number {
+  const inInr = sumBucketProfitInInr(buckets);
+  const raw = convertAmountFromInr(inInr, currencyCode);
+  return Math.round(raw * 100) / 100;
+}
+
+export function totalReturnsForDisplay(
+  buckets: readonly SalesByDayBucket[],
+  currencyCode: MockCurrencyCode,
+): number {
+  const inInr = sumBucketReturnsInInr(buckets);
+  const raw = convertAmountFromInr(inInr, currencyCode);
+  return Math.round(raw * 100) / 100;
+}
+
+function addDaysUtc(d: Date, delta: number): Date {
+  const out = new Date(d.getTime());
+  out.setUTCDate(out.getUTCDate() + delta);
+  return out;
+}
+
+/**
+ * Deterministic mock store series — daily `grossSales.amount` strings mimic GraphQL decimals;
+ * `orderCount` is an aggregate count compatible with bucketed Orders.
+ */
+function buildDemoBuckets(referenceEnd: Date): SalesByDayBucket[] {
+  const start = addDaysUtc(referenceEnd, -30);
+  const rows: SalesByDayBucket[] = [];
+  let day = start;
+  /** INR gross per day (`MoneyV2.amount`-style decimals). */
+  const grossAmountsInr = [
+    "41250.95", "37980.00", "40733.45", "45112.08", "47775.62", "42892.77",
+    "38901.56", "46055.81", "50291.43", "47622.06", "49022.94", "41788.63",
+    "44133.71", "51229.91", "49590.52", "46228.54", "43021.92", "50001.87",
+    "51944.61", "50555.43", "47990.51", "46001.06", "48915.71", "51088.92",
+    "52744.83", "54022.91", "51907.71", "53052.94", "54276.82", "55590.63",
+    "75990.72",
+  ] as const;
+  for (let i = 0; i < grossAmountsInr.length; i++) {
+    const iso = dateToUtcISODate(day);
+    const amountInRupees = grossAmountsInr[i];
+    const grossSales: MockMoneyV2 = {
+      amount: amountInRupees,
+      currencyCode: "INR",
+    };
+    const rupeesParsed = Number.parseFloat(amountInRupees);
+    const orderCount = Math.max(
+      7,
+      Math.min(
+        32,
+        Math.round(rupeesParsed / 2500) + (i % 5) + (i % 3),
+      ),
+    );
+    const profitRatio = 0.28 + (i % 7) * 0.011 + (i % 3) * 0.003;
+    const profitInr = Math.max(0, rupeesParsed * Math.min(0.36, Math.max(0.28, profitRatio)));
+    const returnsRatio = 0.02 + (i % 5) * 0.008 + (i % 2) * 0.004;
+    const returnsInr = Math.max(0, rupeesParsed * Math.min(0.06, returnsRatio));
+    const fulfillFactor = 0.88 + (i % 9) * 0.01;
+    const fulfilledCount = Math.max(
+      1,
+      Math.min(
+        orderCount,
+        Math.round(orderCount * Math.min(0.96, Math.max(0.88, fulfillFactor))),
+      ),
+    );
+    const profit: MockMoneyV2 = {
+      amount: profitInr.toFixed(2),
+      currencyCode: "INR",
+    };
+    const returns: MockMoneyV2 = {
+      amount: returnsInr.toFixed(2),
+      currencyCode: "INR",
+    };
+    rows.push({
+      __typename: "SalesByDayBucket",
+      occurredOn: iso,
+      grossSales,
+      orderCount,
+      profit,
+      returns,
+      fulfilledCount,
+    });
+    day = addDaysUtc(day, 1);
+    if (dateToUtcISODate(day) > dateToUtcISODate(referenceEnd)) break;
+  }
+  return rows.sort((a, b) => a.occurredOn.localeCompare(b.occurredOn));
+}
+
+export const MOCK_SALES_DAY_BUCKETS: readonly SalesByDayBucket[] =
+  buildDemoBuckets(MOCK_ANALYTICS_TODAY);
