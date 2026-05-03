@@ -18,8 +18,8 @@ import {
 import {
   CameraIcon,
   DeleteIcon,
+  DragHandleIcon,
   EditIcon,
-  MenuVerticalIcon,
 } from "@shopify/polaris-icons";
 import { invokeProductEditIntent } from "../lib/invokeProductEditIntent.client";
 import type { ProductListItem, ProductOverlayKind } from "../lib/productList";
@@ -91,6 +91,11 @@ const DRAG_HANDLE_STYLE: CSSProperties = {
   alignSelf: "center",
   padding: "2px",
   color: "var(--p-color-icon-secondary)",
+};
+
+const DRAG_HANDLE_ACTIVE_STYLE: CSSProperties = {
+  ...DRAG_HANDLE_STYLE,
+  cursor: "grabbing",
 };
 
 const MEDIA_ROW_STYLE: CSSProperties = {
@@ -200,6 +205,20 @@ export function ProductCard({ product }: ProductCardProps) {
     setMediaRows((prev) => [...prev, newMediaRow(localPreviewUrl)]);
   }, []);
 
+  const handleEditApply = useCallback(
+    (newBlobUrl: string) => {
+      if (!editMediaRowId) return;
+      setMediaRows((prev) =>
+        prev.map((r) => {
+          if (r.id !== editMediaRowId) return r;
+          if (r.url.startsWith("blob:")) URL.revokeObjectURL(r.url);
+          return { ...r, url: newBlobUrl };
+        }),
+      );
+    },
+    [editMediaRowId],
+  );
+
   const handleAddSlotKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -236,6 +255,7 @@ export function ProductCard({ product }: ProductCardProps) {
         imageUrl={editImageUrl}
         imageAlt={title}
         onImportApply={handleImportApply}
+        onEditApply={handleEditApply}
         onRemoveImage={
           editMediaRowId
             ? () => {
@@ -287,6 +307,7 @@ export function ProductCard({ product }: ProductCardProps) {
                   tabIndex={0}
                   onClick={() => openEditModal(heroUrl, heroMediaRowId)}
                   onKeyDown={handleHeroKeyDown}
+                  onDragStart={(e) => e.preventDefault()}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -300,6 +321,7 @@ export function ProductCard({ product }: ProductCardProps) {
                     height={600}
                     loading="lazy"
                     decoding="async"
+                    draggable={false}
                     style={MEDIA_IMAGE_STYLE}
                   />
                 </div>
@@ -382,7 +404,11 @@ export function ProductCard({ product }: ProductCardProps) {
                                   e.dataTransfer.dropEffect = "move";
                                   setDragOverId(row.id);
                                 }}
-                                onDragLeave={() => {
+                                onDragLeave={(e: DragEvent<HTMLDivElement>) => {
+                                  const next = e.relatedTarget as Node | null;
+                                  if (next && e.currentTarget.contains(next)) {
+                                    return;
+                                  }
                                   setDragOverId((current) =>
                                     current === row.id ? null : current,
                                   );
@@ -408,10 +434,14 @@ export function ProductCard({ product }: ProductCardProps) {
                                     setDraggingId(null);
                                     setDragOverId(null);
                                   }}
-                                  style={DRAG_HANDLE_STYLE}
+                                  style={
+                                    draggingId === row.id
+                                      ? DRAG_HANDLE_ACTIVE_STYLE
+                                      : DRAG_HANDLE_STYLE
+                                  }
                                   aria-label="Drag to reorder"
                                 >
-                                  <MenuVerticalIcon width={16} height={16} />
+                                  <DragHandleIcon width={16} height={16} />
                                 </div>
                                 <div
                                   style={{
@@ -442,6 +472,7 @@ export function ProductCard({ product }: ProductCardProps) {
                                         }
                                       }}
                                       style={{ cursor: "pointer" }}
+                                      onDragStart={(e) => e.preventDefault()}
                                     >
                                       <Thumbnail
                                         source={row.url}
