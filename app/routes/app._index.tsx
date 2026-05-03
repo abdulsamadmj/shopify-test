@@ -22,7 +22,7 @@ export default function Index() {
   return (
     <Page
       title={APP_TITLE}
-      subtitle="Open Analytics to review store metrics and reports from this app."
+      subtitle="Open Analytics or Products from this app."
     >
       <TitleBar title={APP_TITLE} />
       <BlockStack gap="400">
@@ -37,6 +37,19 @@ export default function Index() {
               </Text>
             </BlockStack>
             <Button url="/app/analytics">Open</Button>
+          </InlineStack>
+        </Card>
+        <Card>
+          <InlineStack align="space-between" blockAlign="center" gap="400">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingSm">
+                Products
+              </Text>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                Browse your catalog with image-first product cards.
+              </Text>
+            </BlockStack>
+            <Button url="/app/products">Open</Button>
           </InlineStack>
         </Card>
       </BlockStack>
