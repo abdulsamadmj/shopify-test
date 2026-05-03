@@ -35,13 +35,10 @@ const ROW_GRID = "minmax(0, 1fr) auto auto";
 
 const TOOLTIP_TITLE_ACTIVATOR_STYLE: CSSProperties = {
   color: "var(--p-color-text)",
-  textDecoration: "none",
-  backgroundImage:
-    "repeating-linear-gradient(90deg, var(--p-color-text) 0 5px, transparent 5px 18px)",
-  backgroundRepeat: "repeat-x",
-  backgroundPosition: "0 calc(100% - 0.06em)",
-  backgroundSize: "18px 1px",
-  paddingBottom: "0.16em",
+  textDecoration: "underline dotted",
+  textUnderlineOffset: "0.18em",
+  textDecorationThickness: "1px",
+  textDecorationColor: "var(--p-color-text)",
 };
 
 export function ListCard({
