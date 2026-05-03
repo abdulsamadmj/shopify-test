@@ -12,6 +12,8 @@ import {
 import { formatInspectLabel } from "./formatInspectLabel";
 import type { AnalyticsChartDatum } from "./types";
 
+const SPARKLINE_LINE_ANIMATION_MS = 300;
+
 export type AnalyticsSparklineProps = {
   chartData: ReadonlyArray<AnalyticsChartDatum>;
   chartDataKey: string;
@@ -126,7 +128,9 @@ export function AnalyticsSparkline({
                     }
                   : false
               }
-              isAnimationActive={false}
+              isAnimationActive
+              animationDuration={SPARKLINE_LINE_ANIMATION_MS}
+              animationEasing="ease-out"
             />
           </LineChart>
         </ResponsiveContainer>

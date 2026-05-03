@@ -18,6 +18,9 @@ import {
 } from "./chartTheme";
 import type { AnalyticsChartDatum } from "./types";
 
+const LARGE_CHART_LINE_ANIMATION_MS = 500;
+const LARGE_CHART_COMPARISON_ANIMATION_BEGIN_MS = 100;
+
 export type AnalyticsLargeCartesianChartProps = {
   chartData: ReadonlyArray<AnalyticsChartDatum>;
   valueKey: string;
@@ -138,7 +141,10 @@ export function AnalyticsLargeCartesianChart({
               stroke={primaryStroke}
               strokeWidth={2}
               dot={false}
-              isAnimationActive={false}
+              isAnimationActive
+              animationBegin={0}
+              animationDuration={LARGE_CHART_LINE_ANIMATION_MS}
+              animationEasing="ease-out"
             />
             {showComparisonLine ? (
               <Line
@@ -149,7 +155,10 @@ export function AnalyticsLargeCartesianChart({
                 strokeWidth={2}
                 strokeDasharray="6 5"
                 dot={false}
-                isAnimationActive={false}
+                isAnimationActive
+                animationBegin={LARGE_CHART_COMPARISON_ANIMATION_BEGIN_MS}
+                animationDuration={LARGE_CHART_LINE_ANIMATION_MS}
+                animationEasing="ease-out"
               />
             ) : null}
           </LineChart>
