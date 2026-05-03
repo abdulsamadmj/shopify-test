@@ -254,6 +254,52 @@ export function buildHourlySalesOverTimeSeries(opts: {
   return rows;
 }
 
+/** Row model for `ListCard` sales breakdown lists. */
+export type SalesBreakdownListRow = {
+  id: string;
+  label: string;
+  valueFormatted: string;
+};
+
+/**
+ * Deterministic mock lines for an Admin-style “Total sales breakdown” card.
+ * Uses filtered-period gross + returns aggregates so rows track date/currency filters.
+ */
+export function buildSalesBreakdownRows(opts: {
+  grossDisplay: number;
+  returnsDisplay: number;
+  unitPrefix: string;
+}): SalesBreakdownListRow[] {
+  const fmt = (n: number) =>
+    `${opts.unitPrefix}${Math.max(0, n).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const gross = Math.max(0, opts.grossDisplay);
+  const returnsAmt = Math.max(0, opts.returnsDisplay);
+  const discounts = Math.round(gross * 0.02418 * 100) / 100;
+  const netSales = Math.max(0, gross - discounts - returnsAmt);
+  const shipping = Math.round(gross * 0.0475 * 100) / 100;
+  const returnFees = Math.round(returnsAmt * 0.065 * 100) / 100;
+  const taxes = Math.round(netSales * 0.1025 * 100) / 100;
+  const totalSales = Math.max(
+    0,
+    Math.round((netSales + shipping + taxes - returnFees) * 100) / 100,
+  );
+
+  return [
+    { id: "gross", label: "Gross sales", valueFormatted: fmt(gross) },
+    { id: "discounts", label: "Discounts", valueFormatted: fmt(discounts) },
+    { id: "returns", label: "Returns", valueFormatted: fmt(returnsAmt) },
+    { id: "net", label: "Net sales", valueFormatted: fmt(netSales) },
+    { id: "shipping", label: "Shipping charges", valueFormatted: fmt(shipping) },
+    { id: "returnFees", label: "Return fees", valueFormatted: fmt(returnFees) },
+    { id: "taxes", label: "Taxes", valueFormatted: fmt(taxes) },
+    { id: "total", label: "Total sales", valueFormatted: fmt(totalSales) },
+  ];
+}
+
 /** Sum of gross for headline — same derivation as summing chart `value` in INR-equivalent cents. */
 export function totalGrossForDisplay(
   buckets: readonly SalesByDayBucket[],

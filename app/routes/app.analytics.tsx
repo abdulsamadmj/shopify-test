@@ -1,8 +1,9 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BlockStack, Box, InlineGrid, Page } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { AnalyticsCard } from "../components/AnalyticsCard";
+import { ListCard } from "../components/ListCard";
 import {
   AnalyticsFiltersBar,
   type PrimaryRangePreset,
@@ -11,6 +12,7 @@ import {
   MOCK_ANALYTICS_TODAY_ISO,
   MOCK_SALES_DAY_BUCKETS,
   buildHourlySalesOverTimeSeries,
+  buildSalesBreakdownRows,
   filterBucketsByIsoRange,
   currencyDisplayPrefix,
   formatLegendDayIso,
@@ -62,11 +64,30 @@ const LARGE_CHART_GRID_COLUMNS = {
 
 const COMPACT_CHART_MIN_HEIGHT = 48;
 
-const COMPACT_METRIC_CHART_STROKE = "#00848E";
-
 const LARGE_CHART_HEIGHT_PX = 300;
 
 export default function AnalyticsPage() {
+  const chartCardMeasureRef = useRef<HTMLDivElement>(null);
+  const [chartCardOuterHeightPx, setChartCardOuterHeightPx] = useState<
+    number | undefined
+  >();
+
+  useLayoutEffect(() => {
+    const el = chartCardMeasureRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      setChartCardOuterHeightPx(
+        Math.round(el.getBoundingClientRect().height),
+      );
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const [primaryPreset, setPrimaryPreset] =
     useState<PrimaryRangePreset>("last_7_days");
   const [customRangeIso, setCustomRangeIso] = useState(
@@ -156,6 +177,16 @@ export default function AnalyticsPage() {
 
   const moneyUnit = currencyDisplayPrefix(currency);
 
+  const salesBreakdownRows = useMemo(
+    () =>
+      buildSalesBreakdownRows({
+        grossDisplay: salesTotal,
+        returnsDisplay: returnsTotal,
+        unitPrefix: moneyUnit,
+      }),
+    [salesTotal, returnsTotal, moneyUnit],
+  );
+
   const legendCurrentDay = formatLegendDayIso(appliedRange.endIso);
   const legendCompareDay = formatLegendDayIso(compareIso);
 
@@ -181,7 +212,6 @@ export default function AnalyticsPage() {
               title="Profit"
               unit={moneyUnit}
               value={profitTotal}
-              chartStroke={COMPACT_METRIC_CHART_STROKE}
               tooltip={{
                 heading: "Profit",
                 body: "Mock net-style profit derived from daily gross in this demo.",
@@ -194,7 +224,6 @@ export default function AnalyticsPage() {
               title="Sales"
               unit={moneyUnit}
               value={salesTotal}
-              chartStroke={COMPACT_METRIC_CHART_STROKE}
               tooltip={{
                 heading: "Sales",
                 body: "Gross sales revenue for the selected period (before discounts and returns).",
@@ -207,7 +236,6 @@ export default function AnalyticsPage() {
               title="Returns"
               unit={moneyUnit}
               value={returnsTotal}
-              chartStroke={COMPACT_METRIC_CHART_STROKE}
               tooltip={{
                 heading: "Returns",
                 body: "Return and refund value for the selected period (mock aggregate).",
@@ -220,7 +248,6 @@ export default function AnalyticsPage() {
               title="Fulfilled"
               unit=""
               value={fulfilledTotal}
-              chartStroke={COMPACT_METRIC_CHART_STROKE}
               tooltip="Fulfilled units or orders in the selected period (mock aggregate)."
               chartData={fulfilledSeries}
               chartDataKey="value"
@@ -229,25 +256,37 @@ export default function AnalyticsPage() {
           </InlineGrid>
 
           <InlineGrid columns={LARGE_CHART_GRID_COLUMNS} gap="300">
-            <AnalyticsCard
-              size="lg"
-              title="Total sales over time"
-              unit={moneyUnit}
-              value={salesTotal}
-              chartData={hourlySalesSeries}
-              chartDataKey="value"
-              comparisonDataKey="compareValue"
-              largeChartXAxisKey="hourLabel"
-              largeChartHeight={LARGE_CHART_HEIGHT_PX}
-              largeChartLegendCurrent={legendCurrentDay}
-              largeChartLegendCompare={legendCompareDay}
-              showComparisonLine={showSalesCompareLine}
-              tooltip={{
-                heading: "Total sales over time",
-                body: "Intraday gross sales for the range end date vs comparison date (mock hourly buckets).",
-              }}
-            />
-            <Box />
+            <Box ref={chartCardMeasureRef} minWidth="0">
+              <AnalyticsCard
+                size="lg"
+                title="Total sales over time"
+                unit={moneyUnit}
+                value={salesTotal}
+                chartData={hourlySalesSeries}
+                chartDataKey="value"
+                comparisonDataKey="compareValue"
+                largeChartXAxisKey="hourLabel"
+                largeChartHeight={LARGE_CHART_HEIGHT_PX}
+                largeChartLegendCurrent={legendCurrentDay}
+                largeChartLegendCompare={legendCompareDay}
+                showComparisonLine={showSalesCompareLine}
+                tooltip={{
+                  heading: "Total sales over time",
+                  body: "Intraday gross sales for the range end date vs comparison date (mock hourly buckets).",
+                }}
+              />
+            </Box>
+            <Box minWidth="0" width="100%">
+              <ListCard
+                title="Total sales breakdown"
+                titleTooltip={{
+                  heading: "Total sales breakdown",
+                  body: "Mock rollup of gross sales, adjustments, and taxes for the selected reporting period.",
+                }}
+                rows={salesBreakdownRows}
+                fixedOuterHeightPx={chartCardOuterHeightPx}
+              />
+            </Box>
           </InlineGrid>
         </BlockStack>
       </Box>
