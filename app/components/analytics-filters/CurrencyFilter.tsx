@@ -15,8 +15,6 @@ export function CurrencyFilter({
 }: CurrencyFilterProps) {
   const [currencyPopover, setCurrencyPopover] = useState(false);
 
-  const currencyLabel = currency === "INR" ? "INR ₹" : "USD $";
-
   return (
     <Popover
       active={currencyPopover}
@@ -26,19 +24,20 @@ export function CurrencyFilter({
       activator={
         <Button
           icon={CurrencyConvertIcon}
+          disclosure
           pressed={currencyPopover}
           onClick={() => setCurrencyPopover((a) => !a)}
         >
-          {currencyLabel}
+          {currency}
         </Button>
       }
     >
       <Popover.Pane fixed>
-        <Box padding="200">
+        <Box padding="300">
           <ActionList
             items={[
               {
-                content: "INR ₹",
+                content: "INR",
                 active: currency === "INR",
                 onAction: () => {
                   onCurrency("INR");
@@ -46,7 +45,7 @@ export function CurrencyFilter({
                 },
               },
               {
-                content: "USD $",
+                content: "USD",
                 active: currency === "USD",
                 onAction: () => {
                   onCurrency("USD");
