@@ -21,6 +21,14 @@ import {
   YAxis,
 } from "recharts";
 
+const TOOLTIP_TITLE_ACTIVATOR_STYLE: CSSProperties = {
+  color: "var(--p-color-text)",
+  textDecoration: "underline dotted",
+  textUnderlineOffset: "0.18em",
+  textDecorationThickness: "1px",
+  textDecorationColor: "var(--p-color-text)",
+};
+
 type PolarisInlineGridGap = ComponentProps<typeof InlineGrid>["gap"];
 type PolarisBlockStackGap = ComponentProps<typeof BlockStack>["gap"];
 
@@ -362,7 +370,7 @@ export function AnalyticsCard({
   const primarySeriesStroke = chartStroke;
 
   const titleText = (
-    <Text as="span" variant="headingMd" fontWeight="semibold" tone="subdued">
+    <Text as="span" variant="headingMd" fontWeight="semibold">
       {title}
     </Text>
   );
@@ -376,23 +384,18 @@ export function AnalyticsCard({
           tooltip
         ) : (
           <>
-            <Text
-              as="span"
-              variant="headingSm"
-              fontWeight="semibold"
-              tone="subdued"
-            >
+            <Text as="span" variant="headingSm" fontWeight="semibold">
               {tooltip.heading}
             </Text>
             <br />
-            <Text as="span" variant="bodyMd" fontWeight="semibold" tone="subdued">
+            <Text as="span" variant="bodyMd" fontWeight="semibold">
               {tooltip.body}
             </Text>
           </>
         )
       }
     >
-      <span>{titleText}</span>
+      <span style={TOOLTIP_TITLE_ACTIVATOR_STYLE}>{titleText}</span>
     </Tooltip>
   ) : (
     titleText
