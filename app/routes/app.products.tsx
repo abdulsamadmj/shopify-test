@@ -16,6 +16,7 @@ import { PlusIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
 
 import { ProductCard } from "../components/ProductCard";
+import { invokeProductCreateIntent } from "../lib/invokeProductEditIntent.client";
 import { loadProductsPageData } from "../lib/productsPageData.server";
 
 const PRODUCT_GRID_COLUMNS = {
@@ -44,8 +45,9 @@ export default function ProductsPage() {
       primaryAction={{
         content: "Add product",
         icon: PlusIcon,
-        url: adminProductsNewUrl,
-        target: "_parent",
+        onAction: () => {
+          void invokeProductCreateIntent(adminProductsNewUrl);
+        },
       }}
     >
       <TitleBar title="Products" />

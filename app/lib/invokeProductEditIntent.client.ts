@@ -29,3 +29,22 @@ export async function invokeProductEditIntent(
   }
   navigateTopToAdminUrl(adminEditUrl);
 }
+
+/**
+ * Opens the native Shopify Admin product creation flow when available;
+ * otherwise navigates the top frame to the classic new-product URL.
+ */
+export async function invokeProductCreateIntent(
+  adminProductsNewUrl: string,
+): Promise<void> {
+  const invoke = window.shopify?.intents?.invoke;
+  if (typeof invoke === "function") {
+    try {
+      await invoke("create:shopify/Product");
+      return;
+    } catch {
+      // Intent failed — fall back to direct admin URL
+    }
+  }
+  navigateTopToAdminUrl(adminProductsNewUrl);
+}
