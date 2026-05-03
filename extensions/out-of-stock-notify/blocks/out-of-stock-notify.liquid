@@ -1,0 +1,167 @@
+{% unless product %}
+{% else %}
+  {% liquid
+    assign current_variant = product.selected_or_first_available_variant
+    assign oos_submit_bg = block.settings.submit_bg | default: '#000000'
+  %}
+  <div
+    id="oos-notify-{{ block.id }}"
+    class="oos-notify"
+    data-oos-notify-root
+    data-initial-variant-id="{{ current_variant.id }}"
+    {% if current_variant.available %}
+      hidden
+    {% endif %}
+  >
+    <script type="application/json" data-oos-variants-json>
+      [
+        {% for variant in product.variants %}
+          {
+            "id": {{ variant.id | json }},
+            "available": {{ variant.available | json }}
+          }{% unless forloop.last %},{% endunless %}
+        {% endfor %}
+      ]
+    </script>
+
+    <section
+      class="oos-notify__card"
+      style="--oos-btn-bg: {{ oos_submit_bg }};"
+      aria-labelledby="oos-heading-{{ block.id }}"
+      data-oos-card
+    >
+      <h2 class="oos-notify__heading" id="oos-heading-{{ block.id }}">
+        {{- block.settings.heading | escape -}}
+      </h2>
+
+      {% if block.settings.body != blank %}
+        <div class="oos-notify__body rte">{{ block.settings.body }}</div>
+      {% endif %}
+
+      {% if block.settings.suffix_text != blank %}
+        <p class="oos-notify__suffix" id="oos-suffix-{{ block.id }}">{{ block.settings.suffix_text | escape }}</p>
+      {% endif %}
+
+      <div
+        id="oos-error-{{ block.id }}"
+        class="oos-notify__error"
+        data-oos-error
+        aria-live="assertive"
+        role="alert"
+        hidden
+      ></div>
+
+      <div data-oos-form-wrap>
+        <form
+          class="oos-notify__form"
+          data-oos-form
+          novalidate
+        >
+          <div class="oos-notify__field">
+            <label class="oos-notify__label" for="oos-email-{{ block.id }}">
+              {{- block.settings.email_label | escape -}}
+            </label>
+            <input
+              id="oos-email-{{ block.id }}"
+              class="oos-notify__input"
+              type="email"
+              name="email"
+              autocomplete="email"
+              inputmode="email"
+              maxlength="254"
+              required
+              aria-required="true"
+              aria-describedby="oos-helper-{{ block.id }} oos-error-{{ block.id }}"
+              aria-invalid="false"
+              data-oos-email
+            >
+            <p class="oos-notify__helper" id="oos-helper-{{ block.id }}">
+              {{- block.settings.email_helper | escape -}}
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            class="oos-notify__submit"
+            data-oos-submit
+          >
+            {{- block.settings.button_label | escape -}}
+          </button>
+        </form>
+      </div>
+
+      <div
+        class="oos-notify__success"
+        data-oos-success
+        hidden
+        tabindex="-1"
+        role="status"
+        aria-live="polite"
+      >
+        <p class="oos-notify__success-msg">{{ block.settings.success_message | escape }}</p>
+      </div>
+    </section>
+  </div>
+{% endunless %}
+
+{% schema %}
+{
+  "name": "Out-of-stock notify me",
+  "target": "section",
+  "stylesheet": "out-of-stock-notify.css",
+  "javascript": "out-of-stock-notify.js",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "We'll let you know when it's back"
+    },
+    {
+      "type": "richtext",
+      "id": "body",
+      "label": "Description",
+      "default": "<p>This item isn't available right now. Enter your email and we'll notify you if it returns.</p>"
+    },
+    {
+      "type": "text",
+      "id": "suffix_text",
+      "label": "Supporting line under description",
+      "default": "We only use your email for this availability update."
+    },
+    {
+      "type": "text",
+      "id": "email_label",
+      "label": "Email field label",
+      "default": "Email address"
+    },
+    {
+      "type": "text",
+      "id": "email_helper",
+      "label": "Email field helper text",
+      "default": "Use the email you check most often."
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Notify me when available"
+    },
+    {
+      "type": "color",
+      "id": "submit_bg",
+      "label": "Button background",
+      "default": "#000000"
+    },
+    {
+      "type": "text",
+      "id": "success_message",
+      "label": "Success message (no email is sent)",
+      "default": "Thanks — you're on the list. We'll reach out if this item is available again."
+    }
+  ]
+}
+{% endschema %}
