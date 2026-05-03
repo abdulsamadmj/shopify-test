@@ -1,10 +1,25 @@
+import { useState } from "react";
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import { Form, useLoaderData } from "@remix-run/react";
+import {
+  AppProvider as PolarisAppProvider,
+  BlockStack,
+  Box,
+  Button,
+  Card,
+  FormLayout,
+  InlineStack,
+  Page,
+  Text,
+  TextField,
+} from "@shopify/polaris";
+import polarisTranslations from "@shopify/polaris/locales/en.json";
+import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
 import { login } from "../../shopify.server";
 
-import styles from "./styles.module.css";
+export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -18,41 +33,74 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function App() {
   const { showForm } = useLoaderData<typeof loader>();
+  const [shop, setShop] = useState("");
+
+  const featureCopy =
+    "Some detail about your feature and its benefit to your customer.";
+
+  const features = (
+    <Box
+      as="ul"
+      paddingInlineStart="500"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--p-space-400)",
+        margin: 0,
+        listStyleType: "disc",
+        listStylePosition: "outside",
+      }}
+    >
+      {Array.from({ length: 3 }, (_, index) => (
+        <Box key={index} as="li">
+          <Text as="p" variant="bodyMd">
+            <Text as="span" variant="bodyMd" fontWeight="semibold">
+              Product feature
+            </Text>
+            . {featureCopy}
+          </Text>
+        </Box>
+      ))}
+    </Box>
+  );
 
   return (
-    <div className={styles.index}>
-      <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
-        <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
-        </p>
-        {showForm && (
-          <Form className={styles.form} method="post" action="/auth/login">
-            <label className={styles.label}>
-              <span>Shop domain</span>
-              <input className={styles.input} type="text" name="shop" />
-              <span>e.g: my-shop-domain.myshopify.com</span>
-            </label>
-            <button className={styles.button} type="submit">
-              Log in
-            </button>
-          </Form>
-        )}
-        <ul className={styles.list}>
-          <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
-          </li>
-          <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
-          </li>
-          <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
-          </li>
-        </ul>
-      </div>
-    </div>
+    <PolarisAppProvider i18n={polarisTranslations}>
+      <Page narrowWidth>
+        <BlockStack gap="600">
+          <BlockStack gap="300">
+            <Text as="h1" variant="headingXl">
+              A short heading about [your app]
+            </Text>
+            <Text as="p" variant="bodyLg">
+              A tagline about [your app] that describes your value proposition.
+            </Text>
+          </BlockStack>
+
+          {showForm ? (
+            <Card>
+              <Form method="post" action="/auth/login">
+                <FormLayout>
+                  <TextField
+                    type="text"
+                    name="shop"
+                    label="Shop domain"
+                    helpText="e.g: my-shop-domain.myshopify.com"
+                    value={shop}
+                    onChange={setShop}
+                    autoComplete="on"
+                  />
+                  <InlineStack>
+                    <Button submit>Log in</Button>
+                  </InlineStack>
+                </FormLayout>
+              </Form>
+            </Card>
+          ) : null}
+
+          {features}
+        </BlockStack>
+      </Page>
+    </PolarisAppProvider>
   );
 }
