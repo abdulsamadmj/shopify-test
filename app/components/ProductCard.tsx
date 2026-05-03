@@ -1,7 +1,6 @@
 import type {
   ComponentProps,
   CSSProperties,
-  DragEvent,
   KeyboardEvent,
 } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,6 +20,27 @@ import {
   DragHandleIcon,
   EditIcon,
 } from "@shopify/polaris-icons";
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { invokeProductEditIntent } from "../lib/invokeProductEditIntent.client";
 import type { ProductListItem, ProductOverlayKind } from "../lib/productList";
 import { ConfirmAlertDialog } from "./ConfirmAlertDialog";
@@ -63,7 +83,28 @@ export type ProductCardProps = {
   product: ProductListItem;
 };
 
-const MEDIA_IMAGE_STYLE: CSSProperties = {
+/** Fixed hero media height (px); image uses object-fit within this frame. */
+const HERO_IMAGE_HEIGHT_PX = 220;
+
+/** Fixed strip thumbnail size (px); matches prior `Thumbnail` small footprint. */
+const STRIP_THUMB_SIZE_PX = 40;
+
+const HERO_IMAGE_STYLE: CSSProperties = {
+  display: "block",
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+};
+
+const STRIP_THUMB_FRAME_STYLE: CSSProperties = {
+  width: STRIP_THUMB_SIZE_PX,
+  height: STRIP_THUMB_SIZE_PX,
+  flexShrink: 0,
+  overflow: "hidden",
+  borderRadius: "var(--p-border-radius-200)",
+};
+
+const STRIP_THUMB_IMAGE_STYLE: CSSProperties = {
   display: "block",
   width: "100%",
   height: "100%",
@@ -91,9 +132,10 @@ const DRAG_HANDLE_STYLE: CSSProperties = {
   alignSelf: "center",
   padding: "2px",
   color: "var(--p-color-icon-secondary)",
+  touchAction: "none",
 };
 
-const DRAG_HANDLE_ACTIVE_STYLE: CSSProperties = {
+const DRAG_HANDLE_OVERLAY_STYLE: CSSProperties = {
   ...DRAG_HANDLE_STYLE,
   cursor: "grabbing",
 };
@@ -104,6 +146,132 @@ const MEDIA_ROW_STYLE: CSSProperties = {
   alignItems: "stretch",
   gap: "var(--p-space-100)",
 };
+
+const OVERLAY_ROW_STYLE: CSSProperties = {
+  ...MEDIA_ROW_STYLE,
+  cursor: "grabbing",
+};
+
+type MediaThumbBodyProps = {
+  row: MediaRow;
+  onEdit: (url: string, rowId: string) => void;
+  onRemove: (rowId: string) => void;
+  handleRef?: (element: HTMLElement | null) => void;
+  handleAttributes?: DraggableAttributes;
+  handleListeners?: DraggableSyntheticListeners;
+  isOverlay?: boolean;
+};
+
+function MediaThumbBody({
+  row,
+  onEdit,
+  onRemove,
+  handleRef,
+  handleAttributes,
+  handleListeners,
+  isOverlay,
+}: MediaThumbBodyProps) {
+  return (
+    <>
+      <div
+        ref={handleRef}
+        {...(handleAttributes ?? {})}
+        {...(handleListeners ?? {})}
+        style={isOverlay ? DRAG_HANDLE_OVERLAY_STYLE : DRAG_HANDLE_STYLE}
+        aria-label="Drag to reorder"
+      >
+        <DragHandleIcon width={16} height={16} />
+      </div>
+      <div style={THUMB_WRAP_STYLE}>
+        <div
+          role="button"
+          tabIndex={isOverlay ? -1 : 0}
+          onClick={() => onEdit(row.url, row.id)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onEdit(row.url, row.id);
+            }
+          }}
+          style={{
+            cursor: "pointer",
+            ...STRIP_THUMB_FRAME_STYLE,
+          }}
+        >
+          <img
+            src={row.url}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            style={STRIP_THUMB_IMAGE_STYLE}
+          />
+        </div>
+        <div style={THUMB_ACTIONS_STYLE}>
+          <Button
+            icon={DeleteIcon}
+            variant="plain"
+            tone="critical"
+            size="micro"
+            accessibilityLabel="Remove image"
+            onClick={() => onRemove(row.id)}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+type SortableMediaThumbProps = {
+  row: MediaRow;
+  onEdit: (url: string, rowId: string) => void;
+  onRemove: (rowId: string) => void;
+};
+
+function SortableMediaThumb({
+  row,
+  onEdit,
+  onRemove,
+}: SortableMediaThumbProps) {
+  const {
+    setNodeRef,
+    setActivatorNodeRef,
+    attributes,
+    listeners,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: row.id });
+
+  const style: CSSProperties = {
+    ...MEDIA_ROW_STYLE,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <MediaThumbBody
+        row={row}
+        onEdit={onEdit}
+        onRemove={onRemove}
+        handleRef={setActivatorNodeRef}
+        handleAttributes={attributes}
+        handleListeners={listeners}
+      />
+    </div>
+  );
+}
+
+function MediaThumbPreview({ row }: { row: MediaRow }) {
+  const noop = () => {};
+  return (
+    <div style={OVERLAY_ROW_STYLE}>
+      <MediaThumbBody row={row} onEdit={noop} onRemove={noop} isOverlay />
+    </div>
+  );
+}
 
 export function ProductCard({ product }: ProductCardProps) {
   const {
@@ -137,8 +305,7 @@ export function ProductCard({ product }: ProductCardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fingerprint `serverMediaKey` avoids reference-only churn
   }, [id, serverMediaKey]);
 
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editModalVariant, setEditModalVariant] = useState<
     "edit" | "import"
@@ -150,6 +317,17 @@ export function ProductCard({ product }: ProductCardProps) {
   );
 
   const heroUrl = mediaRows[0]?.url ?? featuredImageUrl;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const activeRow = activeId
+    ? (mediaRows.find((r) => r.id === activeId) ?? null)
+    : null;
 
   const openImportModal = useCallback(() => {
     setEditModalVariant("import");
@@ -164,19 +342,6 @@ export function ProductCard({ product }: ProductCardProps) {
         URL.revokeObjectURL(row.url);
       }
       return prev.filter((r) => r.id !== rowId);
-    });
-  }, []);
-
-  const moveRow = useCallback((fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    setMediaRows((prev) => {
-      const fromIdx = prev.findIndex((r) => r.id === fromId);
-      const toIdx = prev.findIndex((r) => r.id === toId);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      const next = [...prev];
-      const [removed] = next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, removed);
-      return next;
     });
   }, []);
 
@@ -236,6 +401,31 @@ export function ProductCard({ product }: ProductCardProps) {
       openEditModal(heroUrl, heroMediaRowId);
     }
   };
+
+  const handleStripRemove = useCallback((rowId: string) => {
+    setStripRemoveRowId(rowId);
+  }, []);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(String(event.active.id));
+  }, []);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setMediaRows((rows) => {
+        const oldIndex = rows.findIndex((r) => r.id === active.id);
+        const newIndex = rows.findIndex((r) => r.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return rows;
+        return arrayMove(rows, oldIndex, newIndex);
+      });
+    }
+    setActiveId(null);
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null);
+  }, []);
 
   const badge = overlayBadge(overlay);
 
@@ -298,7 +488,8 @@ export function ProductCard({ product }: ProductCardProps) {
               style={{
                 position: "relative",
                 width: "100%",
-                aspectRatio: "4 / 3",
+                height: HERO_IMAGE_HEIGHT_PX,
+                overflow: "hidden",
               }}
             >
               {heroUrl ? (
@@ -307,7 +498,6 @@ export function ProductCard({ product }: ProductCardProps) {
                   tabIndex={0}
                   onClick={() => openEditModal(heroUrl, heroMediaRowId)}
                   onKeyDown={handleHeroKeyDown}
-                  onDragStart={(e) => e.preventDefault()}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -322,14 +512,14 @@ export function ProductCard({ product }: ProductCardProps) {
                     loading="lazy"
                     decoding="async"
                     draggable={false}
-                    style={MEDIA_IMAGE_STYLE}
+                    style={HERO_IMAGE_STYLE}
                   />
                 </div>
               ) : (
                 <Box
                   width="100%"
-                  minHeight="100%"
                   background="bg-fill-secondary"
+                  minHeight={`${HERO_IMAGE_HEIGHT_PX}px`}
                 />
               )}
               {badge ? (
@@ -394,137 +584,73 @@ export function ProductCard({ product }: ProductCardProps) {
                         wrap
                       >
                         <Box minWidth="0">
-                          <InlineStack gap="200" blockAlign="center" wrap>
-                            {mediaRows.map((row) => (
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            onDragCancel={handleDragCancel}
+                          >
+                            <InlineStack gap="200" blockAlign="center" wrap>
+                              <SortableContext
+                                items={mediaRows.map((r) => r.id)}
+                                strategy={horizontalListSortingStrategy}
+                              >
+                                {mediaRows.map((row) => (
+                                  <SortableMediaThumb
+                                    key={row.id}
+                                    row={row}
+                                    onEdit={openEditModal}
+                                    onRemove={handleStripRemove}
+                                  />
+                                ))}
+                              </SortableContext>
                               <div
-                                key={row.id}
-                                style={MEDIA_ROW_STYLE}
-                                onDragOver={(e: DragEvent<HTMLDivElement>) => {
-                                  e.preventDefault();
-                                  e.dataTransfer.dropEffect = "move";
-                                  setDragOverId(row.id);
-                                }}
-                                onDragLeave={(e: DragEvent<HTMLDivElement>) => {
-                                  const next = e.relatedTarget as Node | null;
-                                  if (next && e.currentTarget.contains(next)) {
-                                    return;
-                                  }
-                                  setDragOverId((current) =>
-                                    current === row.id ? null : current,
-                                  );
-                                }}
-                                onDrop={(e: DragEvent<HTMLDivElement>) => {
-                                  e.preventDefault();
-                                  const fromId =
-                                    e.dataTransfer.getData("text/plain") ||
-                                    draggingId;
-                                  if (fromId) moveRow(fromId, row.id);
-                                  setDraggingId(null);
-                                  setDragOverId(null);
-                                }}
+                                role="button"
+                                tabIndex={0}
+                                onClick={openImportModal}
+                                onKeyDown={handleAddSlotKeyDown}
+                                style={{ cursor: "pointer" }}
                               >
                                 <div
-                                  draggable
-                                  onDragStart={(e) => {
-                                    setDraggingId(row.id);
-                                    e.dataTransfer.effectAllowed = "move";
-                                    e.dataTransfer.setData("text/plain", row.id);
-                                  }}
-                                  onDragEnd={() => {
-                                    setDraggingId(null);
-                                    setDragOverId(null);
-                                  }}
-                                  style={
-                                    draggingId === row.id
-                                      ? DRAG_HANDLE_ACTIVE_STYLE
-                                      : DRAG_HANDLE_STYLE
-                                  }
-                                  aria-label="Drag to reorder"
-                                >
-                                  <DragHandleIcon width={16} height={16} />
-                                </div>
-                                <div
                                   style={{
-                                    opacity: draggingId === row.id ? 0.55 : 1,
-                                    outlineOffset: 2,
-                                    outline:
-                                      dragOverId === row.id &&
-                                      draggingId !== row.id
-                                        ? "2px solid var(--p-color-border-focus)"
-                                        : undefined,
+                                    padding: "var(--p-space-100)",
+                                    borderWidth: "var(--p-border-width-025)",
+                                    borderStyle: "dashed",
+                                    borderColor: "var(--p-color-border)",
                                     borderRadius: "var(--p-border-radius-200)",
+                                    background:
+                                      "var(--p-color-bg-surface-secondary)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
                                   }}
                                 >
-                                  <div style={THUMB_WRAP_STYLE}>
-                                    <div
-                                      role="button"
-                                      tabIndex={0}
-                                      onClick={() =>
-                                        openEditModal(row.url, row.id)
-                                      }
-                                      onKeyDown={(event) => {
-                                        if (
-                                          event.key === "Enter" ||
-                                          event.key === " "
-                                        ) {
-                                          event.preventDefault();
-                                          openEditModal(row.url, row.id);
-                                        }
-                                      }}
-                                      style={{ cursor: "pointer" }}
-                                      onDragStart={(e) => e.preventDefault()}
-                                    >
-                                      <Thumbnail
-                                        source={row.url}
-                                        alt=""
-                                        size="small"
-                                      />
-                                    </div>
-                                    <div
-                                      style={THUMB_ACTIONS_STYLE}
-                                      onMouseDown={(event) =>
-                                        event.stopPropagation()
-                                      }
-                                    >
-                                      <Button
-                                        icon={DeleteIcon}
-                                        variant="plain"
-                                        tone="critical"
-                                        size="micro"
-                                        accessibilityLabel="Remove image"
-                                        onClick={() =>
-                                          setStripRemoveRowId(row.id)
-                                        }
-                                      />
-                                    </div>
+                                  <div
+                                    style={{
+                                      width: STRIP_THUMB_SIZE_PX,
+                                      height: STRIP_THUMB_SIZE_PX,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <Thumbnail
+                                      source={CameraIcon}
+                                      alt="Add image"
+                                      size="small"
+                                      transparent
+                                    />
                                   </div>
                                 </div>
                               </div>
-                            ))}
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={openImportModal}
-                              onKeyDown={handleAddSlotKeyDown}
-                              style={{ cursor: "pointer" }}
-                            >
-                              <Box
-                                padding="100"
-                                borderWidth="025"
-                                borderStyle="dashed"
-                                borderColor="border"
-                                borderRadius="200"
-                                background="bg-surface-secondary"
-                              >
-                                <Thumbnail
-                                  source={CameraIcon}
-                                  alt="Add image"
-                                  size="small"
-                                  transparent
-                                />
-                              </Box>
-                            </div>
-                          </InlineStack>
+                            </InlineStack>
+                            <DragOverlay>
+                              {activeRow ? (
+                                <MediaThumbPreview row={activeRow} />
+                              ) : null}
+                            </DragOverlay>
+                          </DndContext>
                         </Box>
                       </InlineStack>
                     </BlockStack>
