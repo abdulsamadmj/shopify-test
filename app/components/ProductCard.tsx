@@ -1,4 +1,10 @@
-import type { ComponentProps } from "react";
+import type {
+  ComponentProps,
+  CSSProperties,
+  DragEvent,
+  KeyboardEvent,
+} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Badge,
   BlockStack,
@@ -9,11 +15,23 @@ import {
   Text,
   Thumbnail,
 } from "@shopify/polaris";
-import { CameraIcon, EditIcon } from "@shopify/polaris-icons";
+import {
+  CameraIcon,
+  DeleteIcon,
+  EditIcon,
+  MenuVerticalIcon,
+} from "@shopify/polaris-icons";
 import { invokeProductEditIntent } from "../lib/invokeProductEditIntent.client";
 import type { ProductListItem, ProductOverlayKind } from "../lib/productList";
+import { ConfirmAlertDialog } from "./ConfirmAlertDialog";
+import { ProductImageEditModal } from "./ProductImageEditModal";
 
 type BadgeTone = NonNullable<ComponentProps<typeof Badge>["tone"]>;
+
+type MediaRow = {
+  id: string;
+  url: string;
+};
 
 function overlayBadge(overlay: ProductOverlayKind): {
   label: string;
@@ -31,15 +49,55 @@ function overlayBadge(overlay: ProductOverlayKind): {
   }
 }
 
+function newMediaRow(url: string): MediaRow {
+  return {
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${url}-${Date.now()}-${Math.random()}`,
+    url,
+  };
+}
+
 export type ProductCardProps = {
   product: ProductListItem;
 };
 
-const MEDIA_IMAGE_STYLE = {
+const MEDIA_IMAGE_STYLE: CSSProperties = {
   display: "block",
   width: "100%",
   height: "100%",
-  objectFit: "cover" as const,
+  objectFit: "cover",
+};
+
+const THUMB_WRAP_STYLE: CSSProperties = {
+  position: "relative",
+  display: "inline-block",
+};
+
+const THUMB_ACTIONS_STYLE: CSSProperties = {
+  position: "absolute",
+  insetBlockStart: 0,
+  insetInlineEnd: 0,
+  display: "flex",
+  gap: 2,
+  zIndex: 1,
+};
+
+const DRAG_HANDLE_STYLE: CSSProperties = {
+  cursor: "grab",
+  display: "flex",
+  alignItems: "center",
+  alignSelf: "center",
+  padding: "2px",
+  color: "var(--p-color-icon-secondary)",
+};
+
+const MEDIA_ROW_STYLE: CSSProperties = {
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "stretch",
+  gap: "var(--p-space-100)",
 };
 
 export function ProductCard({ product }: ProductCardProps) {
@@ -47,15 +105,120 @@ export function ProductCard({ product }: ProductCardProps) {
     id,
     title,
     featuredImageUrl,
-    mediaCount,
     mediaPreviewUrls,
     priceFormatted,
     overlay,
     adminEditUrl,
   } = product;
 
+  const serverMediaKey = useMemo(
+    () => mediaPreviewUrls.join("\u001f"),
+    [mediaPreviewUrls],
+  );
+
+  const [mediaRows, setMediaRows] = useState<MediaRow[]>(() =>
+    mediaPreviewUrls.map((url) => newMediaRow(url)),
+  );
+
+  useEffect(() => {
+    setMediaRows((prev) => {
+      for (const r of prev) {
+        if (r.url.startsWith("blob:")) {
+          URL.revokeObjectURL(r.url);
+        }
+      }
+      return mediaPreviewUrls.map((url) => newMediaRow(url));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fingerprint `serverMediaKey` avoids reference-only churn
+  }, [id, serverMediaKey]);
+
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editModalVariant, setEditModalVariant] = useState<
+    "edit" | "import"
+  >("edit");
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
+  const [editMediaRowId, setEditMediaRowId] = useState<string | null>(null);
+  const [stripRemoveRowId, setStripRemoveRowId] = useState<string | null>(
+    null,
+  );
+
+  const heroUrl = mediaRows[0]?.url ?? featuredImageUrl;
+
+  const openImportModal = useCallback(() => {
+    setEditModalVariant("import");
+    setEditImageUrl(null);
+    setEditModalOpen(true);
+  }, []);
+
+  const removeImage = useCallback((rowId: string) => {
+    setMediaRows((prev) => {
+      const row = prev.find((r) => r.id === rowId);
+      if (row?.url.startsWith("blob:")) {
+        URL.revokeObjectURL(row.url);
+      }
+      return prev.filter((r) => r.id !== rowId);
+    });
+  }, []);
+
+  const moveRow = useCallback((fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    setMediaRows((prev) => {
+      const fromIdx = prev.findIndex((r) => r.id === fromId);
+      const toIdx = prev.findIndex((r) => r.id === toId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const next = [...prev];
+      const [removed] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, removed);
+      return next;
+    });
+  }, []);
+
+  const openEditModal = useCallback(
+    (url: string, explicitRowId?: string | null) => {
+      const resolvedRowId =
+        explicitRowId !== undefined && explicitRowId !== null
+          ? explicitRowId
+          : (mediaRows.find((r) => r.url === url)?.id ?? null);
+      setEditModalVariant("edit");
+      setEditImageUrl(url);
+      setEditMediaRowId(resolvedRowId);
+      setEditModalOpen(true);
+    },
+    [mediaRows],
+  );
+
+  const closeEditModal = useCallback(() => {
+    setEditModalOpen(false);
+    setEditImageUrl(null);
+    setEditMediaRowId(null);
+    setEditModalVariant("edit");
+  }, []);
+
+  const handleImportApply = useCallback((localPreviewUrl: string) => {
+    setMediaRows((prev) => [...prev, newMediaRow(localPreviewUrl)]);
+  }, []);
+
+  const handleAddSlotKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openImportModal();
+    }
+  };
+
+  const heroMediaRowId =
+    mediaRows.find((r) => r.url === heroUrl)?.id ?? null;
+
+  const handleHeroKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!heroUrl) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openEditModal(heroUrl, heroMediaRowId);
+    }
+  };
+
   const badge = overlayBadge(overlay);
-  const showTrailingMediaSlot = mediaCount > 0;
 
   return (
     <div
@@ -66,6 +229,34 @@ export function ProductCard({ product }: ProductCardProps) {
         flexDirection: "column",
       }}
     >
+      <ProductImageEditModal
+        open={editModalOpen}
+        onClose={closeEditModal}
+        variant={editModalVariant}
+        imageUrl={editImageUrl}
+        imageAlt={title}
+        onImportApply={handleImportApply}
+        onRemoveImage={
+          editMediaRowId
+            ? () => {
+                removeImage(editMediaRowId);
+                closeEditModal();
+              }
+            : undefined
+        }
+      />
+
+      <ConfirmAlertDialog
+        open={stripRemoveRowId !== null}
+        title="Remove image?"
+        message="Remove this image from the product's media strip? You can add images again from the strip."
+        onClose={() => setStripRemoveRowId(null)}
+        onConfirm={() => {
+          if (stripRemoveRowId) {
+            removeImage(stripRemoveRowId);
+          }
+        }}
+      />
       <div
         style={{
           flex: 1,
@@ -90,16 +281,28 @@ export function ProductCard({ product }: ProductCardProps) {
                 aspectRatio: "4 / 3",
               }}
             >
-              {featuredImageUrl ? (
-                <img
-                  src={featuredImageUrl}
-                  alt={title}
-                  width={800}
-                  height={600}
-                  loading="lazy"
-                  decoding="async"
-                  style={MEDIA_IMAGE_STYLE}
-                />
+              {heroUrl ? (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openEditModal(heroUrl, heroMediaRowId)}
+                  onKeyDown={handleHeroKeyDown}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    cursor: "pointer",
+                  }}
+                >
+                  <img
+                    src={heroUrl}
+                    alt={title}
+                    width={800}
+                    height={600}
+                    loading="lazy"
+                    decoding="async"
+                    style={MEDIA_IMAGE_STYLE}
+                  />
+                </div>
               ) : (
                 <Box
                   width="100%"
@@ -160,7 +363,7 @@ export function ProductCard({ product }: ProductCardProps) {
                   >
                     <BlockStack gap="200">
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Media ({mediaCount})
+                        Media ({mediaRows.length})
                       </Text>
                       <InlineStack
                         align="start"
@@ -170,15 +373,110 @@ export function ProductCard({ product }: ProductCardProps) {
                       >
                         <Box minWidth="0">
                           <InlineStack gap="200" blockAlign="center" wrap>
-                            {mediaPreviewUrls.map((url, index) => (
-                              <Thumbnail
-                                key={`${url}-${index}`}
-                                source={url}
-                                alt=""
-                                size="small"
-                              />
+                            {mediaRows.map((row) => (
+                              <div
+                                key={row.id}
+                                style={MEDIA_ROW_STYLE}
+                                onDragOver={(e: DragEvent<HTMLDivElement>) => {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = "move";
+                                  setDragOverId(row.id);
+                                }}
+                                onDragLeave={() => {
+                                  setDragOverId((current) =>
+                                    current === row.id ? null : current,
+                                  );
+                                }}
+                                onDrop={(e: DragEvent<HTMLDivElement>) => {
+                                  e.preventDefault();
+                                  const fromId =
+                                    e.dataTransfer.getData("text/plain") ||
+                                    draggingId;
+                                  if (fromId) moveRow(fromId, row.id);
+                                  setDraggingId(null);
+                                  setDragOverId(null);
+                                }}
+                              >
+                                <div
+                                  draggable
+                                  onDragStart={(e) => {
+                                    setDraggingId(row.id);
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData("text/plain", row.id);
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggingId(null);
+                                    setDragOverId(null);
+                                  }}
+                                  style={DRAG_HANDLE_STYLE}
+                                  aria-label="Drag to reorder"
+                                >
+                                  <MenuVerticalIcon width={16} height={16} />
+                                </div>
+                                <div
+                                  style={{
+                                    opacity: draggingId === row.id ? 0.55 : 1,
+                                    outlineOffset: 2,
+                                    outline:
+                                      dragOverId === row.id &&
+                                      draggingId !== row.id
+                                        ? "2px solid var(--p-color-border-focus)"
+                                        : undefined,
+                                    borderRadius: "var(--p-border-radius-200)",
+                                  }}
+                                >
+                                  <div style={THUMB_WRAP_STYLE}>
+                                    <div
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() =>
+                                        openEditModal(row.url, row.id)
+                                      }
+                                      onKeyDown={(event) => {
+                                        if (
+                                          event.key === "Enter" ||
+                                          event.key === " "
+                                        ) {
+                                          event.preventDefault();
+                                          openEditModal(row.url, row.id);
+                                        }
+                                      }}
+                                      style={{ cursor: "pointer" }}
+                                    >
+                                      <Thumbnail
+                                        source={row.url}
+                                        alt=""
+                                        size="small"
+                                      />
+                                    </div>
+                                    <div
+                                      style={THUMB_ACTIONS_STYLE}
+                                      onMouseDown={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                    >
+                                      <Button
+                                        icon={DeleteIcon}
+                                        variant="plain"
+                                        tone="critical"
+                                        size="micro"
+                                        accessibilityLabel="Remove image"
+                                        onClick={() =>
+                                          setStripRemoveRowId(row.id)
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             ))}
-                            {showTrailingMediaSlot ? (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={openImportModal}
+                              onKeyDown={handleAddSlotKeyDown}
+                              style={{ cursor: "pointer" }}
+                            >
                               <Box
                                 padding="100"
                                 borderWidth="025"
@@ -189,12 +487,12 @@ export function ProductCard({ product }: ProductCardProps) {
                               >
                                 <Thumbnail
                                   source={CameraIcon}
-                                  alt=""
+                                  alt="Add image"
                                   size="small"
                                   transparent
                                 />
                               </Box>
-                            ) : null}
+                            </div>
                           </InlineStack>
                         </Box>
                       </InlineStack>
