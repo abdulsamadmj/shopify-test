@@ -65,7 +65,9 @@ export default function ProductsPage() {
           {graphqlError ? (
             <Banner tone="critical" title="Could not load products">
               <BlockStack gap="200">
-                <p>{graphqlError}</p>
+                <Text as="p" variant="bodyMd">
+                  {graphqlError}
+                </Text>
                 <Box>
                   <Button onClick={() => void revalidator.revalidate()}>
                     Try again
@@ -77,9 +79,9 @@ export default function ProductsPage() {
 
           {products.length === 0 && !graphqlError ? (
             <Banner tone="info" title="No products yet">
-              <p>
+              <Text as="p" variant="bodyMd">
                 Create a product in the Shopify admin, then refresh this page.
-              </p>
+              </Text>
             </Banner>
           ) : null}
 

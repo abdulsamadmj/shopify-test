@@ -35,6 +35,10 @@ type PolarisBlockStackGap = ComponentProps<typeof BlockStack>["gap"];
 const DEFAULT_CHART_STROKE = "#2e72d2";
 const DEFAULT_COMPARISON_STROKE = "#84bfff";
 
+const POLAR_CHART_GRID_STROKE = "var(--p-color-border-secondary)";
+const POLAR_CHART_AXIS_STROKE = "var(--p-color-border-secondary)";
+const POLAR_CHART_TICK_FILL = "var(--p-color-text-secondary)";
+
 function formatInspectLabel(iso: string | undefined) {
   if (!iso || typeof iso !== "string") return "";
   try {
@@ -170,7 +174,7 @@ function AnalyticsSparkline({
                       r: activeDotRadius,
                       stroke: primarySeriesStroke,
                       strokeWidth: chartStrokeWidth,
-                      fill: "#fff",
+                      fill: "var(--p-color-bg-surface)",
                     }
                   : false
               }
@@ -237,20 +241,30 @@ function AnalyticsLargeCartesianChart({
             data={safeData}
             margin={{ top: 8, right: 16, bottom: 8, left: 8 }}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e3e3e3" />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke={POLAR_CHART_GRID_STROKE}
+            />
             <XAxis
               dataKey={xAxisKey}
-              tick={{ fontSize: 11, fill: "#616161" }}
+              tick={{
+                fontSize: 11,
+                fill: POLAR_CHART_TICK_FILL,
+              }}
               tickLine={false}
-              axisLine={{ stroke: "#e3e3e3" }}
+              axisLine={{ stroke: POLAR_CHART_AXIS_STROKE }}
               interval={1}
               tickMargin={8}
             />
             <YAxis
               width={56}
-              tick={{ fontSize: 11, fill: "#616161" }}
+              tick={{
+                fontSize: 11,
+                fill: POLAR_CHART_TICK_FILL,
+              }}
               tickLine={false}
-              axisLine={{ stroke: "#e3e3e3" }}
+              axisLine={{ stroke: POLAR_CHART_AXIS_STROKE }}
               tickFormatter={(v: number) =>
                 `${yTickPrefix}${Number(v).toLocaleString(undefined, {
                   maximumFractionDigits: Number.isInteger(v) ? 0 : 2,
@@ -274,9 +288,16 @@ function AnalyticsLargeCartesianChart({
             <Legend
               verticalAlign="bottom"
               align="center"
-              wrapperStyle={{ paddingTop: 12 }}
+              wrapperStyle={{ paddingTop: "var(--p-space-300)" }}
               formatter={(value) => (
-                <span style={{ fontSize: 12, color: "#303030" }}>{value}</span>
+                <span
+                  style={{
+                    fontSize: "var(--p-font-size-200)",
+                    color: "var(--p-color-text)",
+                  }}
+                >
+                  {value}
+                </span>
               )}
             />
             <Line

@@ -113,9 +113,7 @@ export function ListCard({
   );
 
   const headerBox = (
-    <div
-      ref={fixedOuterHeightPx !== undefined ? headerMeasureRef : undefined}
-    >
+    <div ref={fixedOuterHeightPx !== undefined ? headerMeasureRef : undefined}>
       {titleBlock}
     </div>
   );
@@ -134,9 +132,9 @@ export function ListCard({
           >
             <InlineGrid columns={ROW_GRID} gap="200" alignItems="center">
               <Text as="span" variant="bodyMd" fontWeight="regular" truncate>
-                <span style={{ color: "var(--p-color-text-link)" }}>
+                <Box as="span" color="text-link">
                   {row.label}
-                </span>
+                </Box>
               </Text>
               <Text
                 as="span"
