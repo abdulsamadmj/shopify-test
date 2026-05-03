@@ -32,27 +32,6 @@
   --oos-c-success-bg: rgba(22, 163, 74, 0.08);
 }
 
-@media (prefers-color-scheme: dark) {
-  .oos-notify {
-    --oos-c-card-border: rgba(255, 255, 255, 0.14);
-    --oos-c-card-bg: rgba(15, 23, 42, 0.55);
-    --oos-c-text: #f8fafc;
-
-    --oos-c-text-body: rgba(248, 250, 252, 0.82);
-    --oos-c-text-suffix: rgba(248, 250, 252, 0.65);
-    --oos-c-text-helper: rgba(248, 250, 252, 0.62);
-
-    --oos-c-error-text: #fecaca;
-    --oos-c-error-bg: rgba(127, 29, 29, 0.35);
-    --oos-c-error-border: rgba(254, 202, 202, 0.35);
-
-    --oos-c-input-bg: rgba(2, 6, 23, 0.35);
-    --oos-c-input-text: #f8fafc;
-    --oos-c-input-border: rgba(248, 250, 252, 0.16);
-    --oos-c-input-border-hover: rgba(248, 250, 252, 0.28);
-  }
-}
-
 .oos-notify *,
 .oos-notify *::before,
 .oos-notify *::after {
