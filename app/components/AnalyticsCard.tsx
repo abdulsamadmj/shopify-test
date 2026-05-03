@@ -381,9 +381,7 @@ export function AnalyticsCard({
   const isLg = size === "lg";
   const cardPadding = isSm
     ? { xs: "300" as const }
-    : isLg
-      ? { xs: "400" as const }
-      : { xs: "400" as const };
+    : { xs: "400" as const };
   const gridGap = rowColumnGap;
   const stackGap = isSm ? ("100" as const) : metricsStackGap;
   const chartStrokeWidth = isSm ? 1.5 : 2;

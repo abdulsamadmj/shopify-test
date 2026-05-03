@@ -7,7 +7,7 @@
 export type MockCurrencyCode = "INR" | "USD";
 
 /** Same shape as Admin API MoneyV2 (amount is a decimal string). */
-export interface MockMoneyV2 {
+interface MockMoneyV2 {
   readonly amount: string;
   readonly currencyCode: MockCurrencyCode;
 }
@@ -16,7 +16,7 @@ export interface MockMoneyV2 {
  * Daily row analogous to aggregated `Order` data grouped by UTC date
  * (`occurredOn` like a reporting bucket date).
  */
-export interface SalesByDayBucket {
+interface SalesByDayBucket {
   readonly __typename: "SalesByDayBucket";
   readonly occurredOn: string;
   readonly grossSales: MockMoneyV2;
@@ -30,7 +30,7 @@ export interface SalesByDayBucket {
 }
 
 /** Mock rate: INR per 1 USD (multiply USD → INR). INR is store native currency. */
-export const MOCK_INR_PER_USD = 83;
+const MOCK_INR_PER_USD = 83;
 
 /** Reference “today” for deterministic demo ranges (UTC calendar date). */
 export const MOCK_ANALYTICS_TODAY = new Date(Date.UTC(2026, 4, 3));
@@ -94,10 +94,6 @@ export function sumBucketGrossInInr(buckets: readonly SalesByDayBucket[]): numbe
   return buckets.reduce((acc, row) => acc + parseMoneyAmount(row.grossSales), 0);
 }
 
-export function sumBucketOrders(buckets: readonly SalesByDayBucket[]): number {
-  return buckets.reduce((acc, row) => acc + row.orderCount, 0);
-}
-
 export function sumBucketProfitInInr(buckets: readonly SalesByDayBucket[]): number {
   return buckets.reduce((acc, row) => acc + parseMoneyAmount(row.profit), 0);
 }
@@ -117,15 +113,6 @@ export function toSalesChartSeries(
   return buckets.map((row) => ({
     occurredOn: row.occurredOn,
     value: Math.round(convertAmountFromInr(parseMoneyAmount(row.grossSales), currencyCode) * 100) / 100,
-  }));
-}
-
-export function toOrdersChartSeries(
-  buckets: readonly SalesByDayBucket[],
-): { occurredOn: string; value: number }[] {
-  return buckets.map((row) => ({
-    occurredOn: row.occurredOn,
-    value: row.orderCount,
   }));
 }
 
@@ -180,7 +167,7 @@ function hourLabel12(hour: number): string {
 }
 
 /** Intraday buckets for large “sales over time” cartesian charts (mock). */
-export type HourlySalesDatum = {
+type HourlySalesDatum = {
   hourIndex: number;
   hourLabel: string;
   value: number;
@@ -255,7 +242,7 @@ export function buildHourlySalesOverTimeSeries(opts: {
 }
 
 /** Row model for `ListCard` sales breakdown lists. */
-export type SalesBreakdownListRow = {
+type SalesBreakdownListRow = {
   id: string;
   label: string;
   valueFormatted: string;

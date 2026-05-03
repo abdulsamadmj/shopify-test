@@ -106,10 +106,8 @@ function mapNode(node: GraphqlProductNode, shop: string): ProductListItem {
 
   return {
     id: node.id,
-    legacyResourceId,
     title: node.title,
     featuredImageUrl: featured,
-    imageUrls,
     mediaCount: imageUrls.length,
     mediaPreviewUrls: imageUrls.slice(0, MAX_THUMB_STRIP),
     priceFormatted,
